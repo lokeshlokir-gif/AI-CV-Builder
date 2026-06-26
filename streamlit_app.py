@@ -1,10 +1,15 @@
+
 #!/usr/bin/env python3
-"""AI CV Builder - Streamlit Web App with Word/PDF export + region-aware CV"""
+"""AI CV Builder - Streamlit Web App with region-aware CV, Word/PDF export,
+clickable home cards, expanded domains, mobile-safe sidebar, emoji-stripped exports."""
 import streamlit as st
 import json, re, time, io, ssl
 import urllib.request, urllib.error
 from datetime import datetime
 
+# ============================================================
+# SSL SETUP
+# ============================================================
 def _get_ssl():
     try:
         import certifi
@@ -19,9 +24,11 @@ def _get_ssl():
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
     return ctx, "unverified"
-
 SSL_CTX, SSL_M = _get_ssl()
 
+# ============================================================
+# OPTIONAL LIBRARIES
+# ============================================================
 HAS_PDF = False
 try:
     from pypdf import PdfReader
@@ -58,6 +65,9 @@ try:
     HAS_REQ = True
 except: pass
 
+# ============================================================
+# MODELS
+# ============================================================
 GEMINI_MODELS = [
     ("gemini-2.5-flash", "2.5 Flash (FREE)"),
     ("gemini-2.5-flash-lite", "2.5 Flash-Lite"),
@@ -74,14 +84,75 @@ FB_ = [m[0] for m in GEMINI_MODELS]
 MR = 3
 RDL = 8
 
-DOMAINS = [
-    "General", "AI / Machine Learning", "Data Science / Analytics", "Cyber Security",
-    "Cloud / DevOps", "Software Engineering", "Web Development", "Mobile Development",
-    "Database / SQL", "Networking", "Project Management", "Agile / Scrum",
-    "Finance / Banking", "Law / Legal", "Healthcare / Medical", "Marketing / Digital",
-    "Sales / Business Dev", "HR / Recruitment", "Education / Teaching",
-    "Agriculture / Environment", "Supply Chain / Logistics", "Manufacturing / Engineering"
-]
+# ============================================================
+# MOCK INTERVIEW DOMAINS — 100+ organised in categories
+# ============================================================
+DOMAIN_GROUPS = {
+    "General": ["General"],
+    "Technology": [
+        "AI / Machine Learning", "Data Science / Analytics", "Cyber Security",
+        "Cloud / DevOps", "Software Engineering", "Web Development",
+        "Mobile Development", "Database / SQL", "Networking",
+    ],
+    "Management & Business": [
+        "Project Management", "Agile / Scrum", "Product Management",
+        "Business Analyst", "Operations Management",
+    ],
+    "Finance & Sales": [
+        "Finance / Banking", "Investment / Trading", "Accounting / CA",
+        "Sales / Business Dev", "Marketing / Digital", "HR / Recruitment",
+        "Supply Chain / Logistics",
+    ],
+    "Engineering": [
+        "Mechanical Engineering", "Civil Engineering", "Electrical Engineering",
+        "Electronics & Communication", "Chemical Engineering", "Aerospace Engineering",
+        "Automobile Engineering", "Industrial Engineering", "Architecture",
+    ],
+    "Medical & Healthcare": [
+        "MBBS / Medicine", "BDS / Dentistry", "BPT / Physiotherapy",
+        "Nursing (B.Sc)", "Pharma-B / Pharmacy", "Pharma-D", "Veterinary",
+        "Public Health", "Medical Lab Technology", "Radiology", "Optometry",
+    ],
+    "Education & Teaching": [
+        "Teaching / School", "Higher Education / Lecturer", "Special Education",
+        "Education Administration", "Tutoring",
+    ],
+    "Indian Education Streams": [
+        "PUC PCMB", "PUC PCMC", "PUC Commerce", "PUC Arts",
+        "BCA", "BBA / BBM", "B.A", "B.Com", "B.Sc",
+        "MBA", "M.Sc", "M.A", "M.Com",
+    ],
+    "Law & Legal": [
+        "Law / Legal", "Corporate Law", "Criminal Law", "Civil Law",
+        "IP Law", "Tax Law",
+    ],
+    "Agriculture & Environment": [
+        "Agriculture / Agronomy", "Horticulture", "Forestry",
+        "Environmental Science", "Fisheries", "Dairy Technology", "Food Technology",
+    ],
+    "Arts & Social Sciences": [
+        "Geography", "History", "Psychology", "Sociology", "Political Science",
+        "Economics", "Anthropology", "Philosophy", "Literature",
+    ],
+    "Creative & Media": [
+        "Journalism", "Graphic Design", "UI/UX Design", "Photography",
+        "Film Production", "Music", "Fashion Design", "Interior Design",
+    ],
+    "Services & Hospitality": [
+        "Hotel Management", "Travel & Tourism", "Aviation / Air Hostess",
+        "Event Management", "Real Estate",
+    ],
+    "Government & Civil Services": [
+        "UPSC / Civil Services", "Banking Exams", "Defence", "Police",
+    ],
+    "Trade & Skilled": [
+        "Plumbing / Electrical Trade", "Auto Mechanic", "Carpentry", "Welding",
+    ],
+}
+
+# ============================================================
+# REGION DATA (14 regions — unchanged from working version)
+# ============================================================
 RD_ = {}
 RD_['🇬🇧 United Kingdom'] = dict(code='UK', term='CV', pages='2 pages A4', photo='NO photo - never include photo or DOB', pn=False, pi='Name, phone, email, LinkedIn (NO photo, NO DOB, NO nationality)', sec='Personal Profile, Key Skills, Work Experience, Education, Additional', sty='Achievement-focused with measurable results, UK English', sp='Personal Profile (3-4 lines) at top is ESSENTIAL.', ats='ATS-critical.', av='Photos, DOB, nationality, references', cp=(0, 51, 102))
 RD_['🇺🇸 United States'] = dict(code='US', term='Resume', pages='1-2 pages Letter', photo='NO photo - never include photo or age', pn=False, pi='Name, phone, email, LinkedIn', sec='Summary, Core Competencies, Professional Experience, Education, Certifications', sty='STAR method with quantifiable results, US English', sp='Quantify everything with %, $, numbers.', ats='ATS-CRITICAL.', av='Photos, age, DOB, SSN', cp=(0, 51, 102))
@@ -99,6 +170,80 @@ RD_['🇸🇬 Singapore'] = dict(code='SG', term='Resume/CV', pages='1-2 pages A
 RD_['🇪🇺 EU (Europass)'] = dict(code='EU', term='Europass CV', pages='2-3 pages A4', photo='OPTIONAL', pn=False, pi='Name, address, phone, email, nationality', sec='Personal Information, Work Experience, Education, Language Skills (CEFR), Digital Skills', sty='Standardised Europass format', sp='CEFR language levels required.', ats='Machine-readable.', av='Non-standard', cp=(0, 51, 153))
 RL = list(RD_.keys())
 
+# ============================================================
+# STRIP EMOJIS / SPECIAL UNICODE FOR PDF/WORD SAFETY (Issue #1)
+# ============================================================
+def strip_emojis(text):
+    """Remove emojis, flags, box-drawing & special Unicode that show as
+    black boxes in standard PDF/Word fonts (especially on mobile)."""
+    if not text:
+        return ""
+    # Emoticons, pictographs, transport & supplemental symbols
+    text = re.sub(r'[\U0001F000-\U0001FFFF]', '', text)
+    # Regional indicator symbols (country flags)
+    text = re.sub(r'[\U0001F1E6-\U0001F1FF]', '', text)
+    # Box drawing, block elements, geometric shapes, misc symbols, dingbats
+    text = re.sub(r'[\u2500-\u27BF]', '', text)
+    # Misc symbols and arrows
+    text = re.sub(r'[\u2B00-\u2BFF]', '', text)
+    # Miscellaneous Technical
+    text = re.sub(r'[\u2300-\u23FF]', '', text)
+    # Variation selectors
+    text = re.sub(r'[\uFE00-\uFE0F]', '', text)
+    # Zero-width joiner
+    text = text.replace('\u200d', '')
+    # Common box-drawing leftovers just in case
+    for ch in '═━─━│┃┌┐└┘├┤┬┴┼╔╗╚╝╠╣╦╩╬':
+        text = text.replace(ch, '')
+    # Tidy extra spaces a stripped emoji might leave
+    text = re.sub(r'[ \t]+', ' ', text)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
+
+# ============================================================
+# EXTRACT CANDIDATE NAME FOR FILENAMES (Issue #2)
+# ============================================================
+def extract_name(text):
+    """Find candidate's name from a CV / cover letter / feedback text.
+    Returns a filesystem-safe string like 'Vitthal_Kallappa'."""
+    if not text:
+        return "Candidate"
+    SK = ["SUMMARY", "SKILL", "EXPERIENCE", "EDUCATION", "CERTIF", "PROFILE",
+          "OBJECTIVE", "PERSONAL", "CAREER", "LANGUAGES", "ADDITIONAL",
+          "DECLARATION", "REFERENCES", "QUALIFICATIONS", "WORK HISTORY",
+          "MOTIVATION", "DEAR", "TO WHOM", "HIRING MANAGER", "COVER LETTER",
+          "SCORE", "ANALYSIS", "FEEDBACK", "QUESTION", "ANSWER", "STRENGTH",
+          "WEAKNESS", "IDEAL", "TIPS", "INSIGHT", "ACTION", "RECOMMENDATION"]
+    raw = [l for l in strip_emojis(text).split("\n") if l.strip()]
+    # Check first 10 + last 5 lines (cover letters often sign off with name)
+    candidates = raw[:10] + raw[-5:]
+    for line in candidates:
+        c = re.sub(r"#+\s*", "", line).strip()
+        c = c.strip("*").strip("- •▪").strip()
+        c = re.sub(r"^(sincerely|regards|best regards|yours sincerely|"
+                   r"yours truly|kind regards|warm regards),?\s*", "",
+                   c, flags=re.I).strip()
+        if not c:
+            continue
+        u = c.upper().replace(":", "")
+        if any(k in u for k in SK):
+            continue
+        if c.lower().startswith(("here", "below", "i have", "this is",
+                                  "based on", "dear", "to whom")):
+            continue
+        if len(c) < 2 or len(c) > 60:
+            continue
+        # Looks like a Latin-alphabet name
+        if not re.match(r"^[A-Za-z][A-Za-z\s\.\-']{1,}$", c):
+            continue
+        safe = re.sub(r"[^A-Za-z0-9_\-]+", "_", c).strip("_")
+        if safe:
+            return safe
+    return "Candidate"
+
+# ============================================================
+# NETWORK / AI CALLS (unchanged logic)
+# ============================================================
 def _post(url, data, headers=None, to=120):
     b = json.dumps(data).encode()
     hdrs = {"Content-Type": "application/json"}
@@ -169,10 +314,13 @@ def ai_call(pr, key, prov="gemini", model="gemini-2.5-flash"):
             if ok: return f"[Used:{fb}]\n\n{t}"
             if "RATE_LIMITED" not in t: return t
             time.sleep(2)
-        return "❌ All models failed."
+        return "All models failed."
     except Exception as e:
         return f"[Error] {e}"
 
+# ============================================================
+# FILE READER
+# ============================================================
 def read_file(uploaded):
     if uploaded is None: return ""
     name = uploaded.name.lower()
@@ -188,59 +336,47 @@ def read_file(uploaded):
         return uploaded.read().decode("utf-8", errors="ignore")
     return ""
 
+# ============================================================
+# WORD EXPORT — strips emojis BEFORE rendering (Issue #1)
+# ============================================================
 def make_docx(text, region):
     if not HAS_DOCX: return None
+    text = strip_emojis(text)  # << critical safety strip
     ri = RD_.get(region, {})
     cp = ri.get("cp", (0, 51, 102))
     has_photo = ri.get("pn", False)
     PC = RGBColor(*cp)
-    
     doc = Document()
     for s in doc.sections:
-        s.top_margin = Cm(1.5)
-        s.bottom_margin = Cm(1.5)
-        s.left_margin = Cm(2)
-        s.right_margin = Cm(2)
-    
+        s.top_margin = Cm(1.5); s.bottom_margin = Cm(1.5)
+        s.left_margin = Cm(2);  s.right_margin = Cm(2)
     lines = [l for l in text.split("\n") if l.strip()]
-    SK = ["SUMMARY", "SKILL", "EXPERIENCE", "EDUCATION", "CERTIF", "PROFILE", "OBJECTIVE", "PERSONAL", "CAREER", "LANGUAGES", "ADDITIONAL", "DECLARATION", "REFERENCES", "QUALIFICATIONS", "WORK HISTORY", "MOTIVATION"]
-    
-    name = ""
-    cs = 0
+    SK = ["SUMMARY", "SKILL", "EXPERIENCE", "EDUCATION", "CERTIF", "PROFILE",
+          "OBJECTIVE", "PERSONAL", "CAREER", "LANGUAGES", "ADDITIONAL",
+          "DECLARATION", "REFERENCES", "QUALIFICATIONS", "WORK HISTORY", "MOTIVATION"]
+    name = ""; cs = 0
     for idx, line in enumerate(lines):
         c = re.sub(r"#+\s*", "", line.strip()).strip("*").strip()
         if not c: continue
         u = c.upper().replace(":", "")
-        if not name and not any(k in u for k in SK) and len(c) > 1 and not c.lower().startswith(("here", "below", "i have", "this is", "based on")):
-            name = c
-            cs = idx + 1
-            break
-    
+        if not name and not any(k in u for k in SK) and len(c) > 1 and \
+           not c.lower().startswith(("here", "below", "i have", "this is", "based on")):
+            name = c; cs = idx + 1; break
     if has_photo and name:
         table = doc.add_table(rows=1, cols=2)
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
-        lc = table.rows[0].cells[0]
-        lc.width = Cm(12)
-        p = lc.paragraphs[0]
-        r = p.add_run(name)
-        r.font.size = Pt(22)
-        r.font.bold = True
-        r.font.color.rgb = PC
-        rc = table.rows[0].cells[1]
-        rc.width = Cm(4)
+        lc = table.rows[0].cells[0]; lc.width = Cm(12)
+        p = lc.paragraphs[0]; r = p.add_run(name)
+        r.font.size = Pt(22); r.font.bold = True; r.font.color.rgb = PC
+        rc = table.rows[0].cells[1]; rc.width = Cm(4)
         pp = rc.paragraphs[0]
         pp.alignment = WD_ALIGN_PARAGRAPH.CENTER
         pp.paragraph_format.space_before = Pt(20)
         pp.paragraph_format.space_after = Pt(20)
         pp.add_run("[ PHOTO ]\n3.5 x 4.5cm").font.size = Pt(10)
     else:
-        p = doc.add_paragraph()
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        r = p.add_run(name)
-        r.font.size = Pt(24)
-        r.font.bold = True
-        r.font.color.rgb = PC
-    
+        p = doc.add_paragraph(); p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        r = p.add_run(name); r.font.size = Pt(24); r.font.bold = True; r.font.color.rgb = PC
     for i in range(cs, len(lines)):
         line = lines[i].strip()
         if not line: continue
@@ -250,33 +386,27 @@ def make_docx(text, region):
         cfc = c.strip("*").strip()
         if not cfc: continue
         u = cfc.upper().replace(":", "")
-        is_h = False
-        ht = cfc
+        is_h = False; ht = cfc
         if line.startswith("#"):
             is_h = True
         elif line.startswith("**") and line.endswith("**") and len(line) > 4:
             ht = line.strip("*").strip()
-            u2 = ht.upper().replace(":", "")
-            if any(k in u2 for k in SK):
-                is_h = True
-        elif len(cfc) >= 3 and not cfc.startswith(("-", "•", "*")):
+            if any(k in ht.upper().replace(":", "") for k in SK): is_h = True
+        elif len(cfc) >= 3 and not cfc.startswith(("-", "*")):
             al = [x for x in cfc if x.isalpha()]
             if al and sum(1 for x in al if x.isupper()) / len(al) > 0.7 and any(k in u for k in SK):
                 is_h = True
-        
         if is_h:
             p = doc.add_paragraph()
             p.paragraph_format.space_before = Pt(12)
             p.paragraph_format.space_after = Pt(4)
             r = p.add_run(ht.upper())
-            r.font.size = Pt(12)
-            r.font.bold = True
-            r.font.color.rgb = PC
-        elif cfc.startswith(("-", "•", "▪", "*")):
-            bt = cfc.lstrip("-*•▪ ").strip()
+            r.font.size = Pt(12); r.font.bold = True; r.font.color.rgb = PC
+        elif cfc.startswith(("-", "*")):
+            bt = cfc.lstrip("-* ").strip()
             p = doc.add_paragraph()
             p.paragraph_format.left_indent = Cm(0.8)
-            p.add_run("▸ ").font.size = Pt(9)
+            p.add_run("• ").font.size = Pt(10)  # safe bullet (U+2022)
             r = p.add_run(re.sub(r"\*\*(.+?)\*\*", r"\1", bt))
             r.font.size = Pt(10)
         else:
@@ -284,47 +414,42 @@ def make_docx(text, region):
             for part in re.split(r"(\*\*.+?\*\*)", cfc):
                 if part.startswith("**") and part.endswith("**"):
                     r = p.add_run(part.strip("*"))
-                    r.font.size = Pt(10)
-                    r.font.bold = True
+                    r.font.size = Pt(10); r.font.bold = True
                 else:
                     cl2 = re.sub(r"\*(.+?)\*", r"\1", part)
                     if cl2.strip():
-                        r = p.add_run(cl2)
-                        r.font.size = Pt(10)
-    
+                        r = p.add_run(cl2); r.font.size = Pt(10)
     if ri.get("code") == "IT":
         doc.add_paragraph()
-        r = doc.add_paragraph().add_run("Autorizzo il trattamento dei dati personali ai sensi del GDPR (UE 2016/679).")
-        r.font.size = Pt(8)
-        r.italic = True
+        r = doc.add_paragraph().add_run(
+            "Autorizzo il trattamento dei dati personali ai sensi del GDPR (UE 2016/679).")
+        r.font.size = Pt(8); r.italic = True
     if ri.get("code") == "IN":
         doc.add_paragraph()
-        r = doc.add_paragraph().add_run("Declaration: I hereby declare that all information provided above is true to the best of my knowledge.")
-        r.font.size = Pt(9)
-        r.italic = True
-    
+        r = doc.add_paragraph().add_run(
+            "Declaration: I hereby declare that all information provided above is true to the best of my knowledge.")
+        r.font.size = Pt(9); r.italic = True
     p = doc.add_paragraph()
     p.paragraph_format.space_before = Pt(20)
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     r = p.add_run("AI CV Builder - " + datetime.now().strftime("%d %B %Y"))
-    r.font.size = Pt(7)
-    r.font.color.rgb = RGBColor(150, 150, 150)
-    r.italic = True
-    
-    buf = io.BytesIO()
-    doc.save(buf)
-    buf.seek(0)
+    r.font.size = Pt(7); r.font.color.rgb = RGBColor(150, 150, 150); r.italic = True
+    buf = io.BytesIO(); doc.save(buf); buf.seek(0)
     return buf.getvalue()
 
+# ============================================================
+# PDF EXPORT — strips emojis BEFORE rendering (Issue #1)
+# ============================================================
 def make_pdf(text, region):
     if not HAS_RL: return None
+    text = strip_emojis(text)  # << critical safety strip
     ri = RD_.get(region, {})
     cp = ri.get("cp", (0, 51, 102))
     has_photo = ri.get("pn", False)
     color_hex = "#%02X%02X%02X" % cp
-    
     buf = io.BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=1.5*cm, bottomMargin=1.5*cm, leftMargin=2*cm, rightMargin=2*cm)
+    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=1.5*cm, bottomMargin=1.5*cm,
+                            leftMargin=2*cm, rightMargin=2*cm)
     ss = getSampleStyleSheet()
     ss.add(ParagraphStyle("CVName", fontSize=20, leading=24, alignment=TA_CENTER, spaceAfter=6, textColor=color_hex, fontName="Helvetica-Bold"))
     ss.add(ParagraphStyle("CVNameL", fontSize=20, leading=24, alignment=TA_LEFT, spaceAfter=6, textColor=color_hex, fontName="Helvetica-Bold"))
@@ -332,21 +457,18 @@ def make_pdf(text, region):
     ss.add(ParagraphStyle("CVBody", fontSize=10, leading=13, spaceAfter=2, fontName="Helvetica"))
     ss.add(ParagraphStyle("CVBullet", fontSize=10, leading=13, leftIndent=20, spaceAfter=1, fontName="Helvetica"))
     ss.add(ParagraphStyle("CVPhoto", fontSize=9, leading=12, alignment=TA_CENTER, fontName="Helvetica"))
-    
     lines = [l for l in text.split("\n") if l.strip()]
-    SK = ["SUMMARY", "SKILL", "EXPERIENCE", "EDUCATION", "CERTIF", "PROFILE", "OBJECTIVE", "PERSONAL", "CAREER", "LANGUAGES", "ADDITIONAL", "DECLARATION", "REFERENCES", "QUALIFICATIONS", "WORK HISTORY", "MOTIVATION"]
-    
-    name = ""
-    cs = 0
+    SK = ["SUMMARY", "SKILL", "EXPERIENCE", "EDUCATION", "CERTIF", "PROFILE",
+          "OBJECTIVE", "PERSONAL", "CAREER", "LANGUAGES", "ADDITIONAL",
+          "DECLARATION", "REFERENCES", "QUALIFICATIONS", "WORK HISTORY", "MOTIVATION"]
+    name = ""; cs = 0
     for idx, line in enumerate(lines):
         c = re.sub(r"#+\s*", "", line.strip()).strip("*").strip()
         if not c: continue
         u = c.upper().replace(":", "")
-        if not name and not any(k in u for k in SK) and len(c) > 1 and not c.lower().startswith(("here", "below", "i have", "this is", "based on")):
-            name = c
-            cs = idx + 1
-            break
-    
+        if not name and not any(k in u for k in SK) and len(c) > 1 and \
+           not c.lower().startswith(("here", "below", "i have", "this is", "based on")):
+            name = c; cs = idx + 1; break
     story = []
     if has_photo and name:
         pt = Table([[Paragraph(name.replace("&", "&amp;"), ss["CVNameL"]),
@@ -359,11 +481,9 @@ def make_pdf(text, region):
             ("TOPPADDING", (1, 0), (1, 0), 25),
             ("BOTTOMPADDING", (1, 0), (1, 0), 25),
         ]))
-        story.append(pt)
-        story.append(Spacer(1, 10))
+        story.append(pt); story.append(Spacer(1, 10))
     elif name:
         story.append(Paragraph(name.replace("&", "&amp;"), ss["CVName"]))
-    
     for i in range(cs, len(lines)):
         s = lines[i].strip()
         if not s: continue
@@ -380,93 +500,84 @@ def make_pdf(text, region):
                 is_h = True
         if is_h:
             story.append(Paragraph(safe.upper(), ss["CVHead"]))
-        elif c.startswith(("-", "•", "▪", "*")):
-            stripped = safe.lstrip("-*•▪ ")
-            story.append(Paragraph("▸ " + stripped, ss["CVBullet"]))
+        elif c.startswith(("-", "*")):
+            stripped = safe.lstrip("-* ")
+            story.append(Paragraph("• " + stripped, ss["CVBullet"]))  # safe bullet
         else:
             story.append(Paragraph(re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", safe), ss["CVBody"]))
-    
     if ri.get("code") == "IT":
         story.append(Spacer(1, 12))
-        story.append(Paragraph("<i>Autorizzo il trattamento dei dati personali ai sensi del GDPR (UE 2016/679).</i>", ss["CVBody"]))
+        story.append(Paragraph(
+            "<i>Autorizzo il trattamento dei dati personali ai sensi del GDPR (UE 2016/679).</i>", ss["CVBody"]))
     if ri.get("code") == "IN":
         story.append(Spacer(1, 12))
-        story.append(Paragraph("<i>Declaration: I hereby declare that all information provided above is true to the best of my knowledge.</i>", ss["CVBody"]))
-    
+        story.append(Paragraph(
+            "<i>Declaration: I hereby declare that all information provided above is true to the best of my knowledge.</i>", ss["CVBody"]))
     story.append(Spacer(1, 20))
-    story.append(Paragraph("<i><font size=7 color='#999999'>AI CV Builder - " + datetime.now().strftime("%d %B %Y") + "</font></i>", ss["CVBody"]))
-    doc.build(story)
-    buf.seek(0)
+    story.append(Paragraph(
+        "<i><font size=7 color='#999999'>AI CV Builder - " +
+        datetime.now().strftime("%d %B %Y") + "</font></i>", ss["CVBody"]))
+    doc.build(story); buf.seek(0)
     return buf.getvalue()
 
+# ============================================================
+# AI PROMPTS (unchanged)
+# ============================================================
 NO_PRE = "RULES: 1) NO FABRICATION 2) Missing=[Not provided] 3) EXPERIENCE=sum jobs(exclude gaps) 4) Only stated numbers 5) Only stated skills 6) Name first, no preamble 7) ACTUAL years 8) Enhance wording only 9) Strictly follow region format"
 
 def _rb(rn, ri):
-    return (
-        "TARGET REGION: " + rn + "\n" +
-        "DOCUMENT TYPE: " + ri["term"] + "\n" +
-        "LENGTH: " + ri["pages"] + "\n" +
-        "PHOTO REQUIREMENT: " + ri["photo"] + "\n" +
-        "PERSONAL INFO TO INCLUDE: " + ri["pi"] + "\n" +
-        "REQUIRED SECTIONS: " + ri["sec"] + "\n" +
-        "STYLE: " + ri["sty"] + "\n" +
-        "SPECIAL REQUIREMENTS: " + ri["sp"] + "\n" +
-        "ATS: " + ri["ats"] + "\n" +
-        "AVOID: " + ri["av"] + "\n\n" +
-        "IMPORTANT: This CV MUST be formatted specifically for " + rn + ". If region requires photo, include [PHOTO PLACEHOLDER] at top. Use exact sections listed above."
-    )
+    return ("TARGET REGION: " + rn + "\n" +
+            "DOCUMENT TYPE: " + ri["term"] + "\n" +
+            "LENGTH: " + ri["pages"] + "\n" +
+            "PHOTO REQUIREMENT: " + ri["photo"] + "\n" +
+            "PERSONAL INFO TO INCLUDE: " + ri["pi"] + "\n" +
+            "REQUIRED SECTIONS: " + ri["sec"] + "\n" +
+            "STYLE: " + ri["sty"] + "\n" +
+            "SPECIAL REQUIREMENTS: " + ri["sp"] + "\n" +
+            "ATS: " + ri["ats"] + "\n" +
+            "AVOID: " + ri["av"] + "\n\n" +
+            "IMPORTANT: Format CV strictly for " + rn + ". If region requires photo, include [PHOTO PLACEHOLDER] at top. Use exact sections listed above. Do NOT use emojis, country flags, or special box-drawing characters in the output.")
 
 def p_gen(jd, info, rn, ri):
     return ("You are an expert CV writer specifically for " + rn + ".\n" + _rb(rn, ri) + "\n" + NO_PRE +
             "\n\nGenerate a " + ri["term"] + " strictly following " + rn + " conventions. Match JD keywords where actual experience aligns." +
             "\n\n---JOB DESCRIPTION---\n" + jd + "\n\n---CANDIDATE INFO---\n" + info)
-
 def p_cmp(cv, jd, rn, ri):
     return ("Expert analyst for " + rn + ".\n" + _rb(rn, ri) +
             "\nProvide: JD MATCH X/100 | REGION COMPLIANCE X/100 | KEY MATCHES | GAPS | SUGGESTIONS" +
             "\n---JD---\n" + jd + "\n---CV---\n" + cv)
-
 def p_imp_cmp(cv, an, jd, rn, ri, kw="", kws="experience"):
     r = ("\nKEYWORD MODE (ATS): MUST place EVERY keyword. Weave naturally." if kws == "force_all"
          else "\nKEYWORD MODE: Only where experience supports. Weave naturally.")
     return ("Expert CV writer for " + rn + ".\n" + _rb(rn, ri) + "\n" + NO_PRE +
             "\nKeep ALL info. Fix issues from analysis. Reformat to strict " + rn + " standard." + r +
             "\n---CV---\n" + cv + "\n---JD---\n" + jd + "\n---ANALYSIS---\n" + an + "\n---KEYWORDS---\n" + kw)
-
 def p_cover(cv, jd, rn, ri):
     return ("Write a cover letter for " + rn + ".\n" + NO_PRE +
             "\nFrom CV+JD. **Bold** key matches. ~350 words. End with KEY MATCHES section. Follow " + rn + " cover letter conventions." +
             "\n---CV---\n" + cv + "\n---JD---\n" + jd + "\n---REGION---\n" + _rb(rn, ri))
-
 def p_ana(cv, rn, ri):
     return ("Expert reviewer for " + rn + ".\n" + _rb(rn, ri) +
             "\nProvide: SCORE X/100 | REGION COMPLIANCE X/100 | STRENGTHS | IMPROVEMENTS | RECOMMENDATIONS" +
             "\n---CV---\n" + cv)
-
 def p_imp(cv, an, rn, ri):
     return ("Expert CV writer for " + rn + ".\n" + _rb(rn, ri) + "\n" + NO_PRE +
             "\nFix ALL issues from analysis. Reformat to strict " + rn + " standards." +
             "\n---CV---\n" + cv + "\n---ANALYSIS---\n" + an)
-
 def p_int(jd):
     return ("Interview coach.\nGenerate 15-20 questions from JD.\nTECHNICAL(10) + BEHAVIOURAL(5) + SITUATIONAL(5)" +
             "\nFor EACH: question | why asked | answer framework (STAR) | key points\nBasic to advanced.\n---JD---\n" + jd)
-
 def p_mock_jd(jd, n=15):
     return ("Interview coach.\nGenerate " + str(n) + " questions from JD.\n60% Technical + 25% Behavioural + 15% Situational" +
             "\nFormat:\nQ1: [question]\nQ2: [question]\n...Only questions.\n---JD---\n" + jd)
-
 def p_mock_dom(dom, n=15):
     return ("Interview coach for " + dom + ".\nGenerate " + str(n) + " questions.\n60% Technical + 25% Behavioural + 15% Situational" +
             "\nBasic to advanced.\nFormat:\nQ1: [question]\nQ2: [question]\n...Only questions.")
-
 def p_mock_eval(q, a):
     return ("Interview coach. Evaluate:\nQuestion: " + q + "\nAnswer: " + a +
             "\n\nProvide:\nSCORE X/10 | STRENGTHS | WEAKNESSES | IDEAL ANSWER (STAR) | 3 TIPS | CONFIDENCE: Low/Med/High")
-
 def p_coach(t, c):
     return ("Career coach: " + t + "\nContext: " + c + "\nInsights, Action plan, Pitfalls, Resources, Timeline")
-
 def p_multi(cv, jds, rn, ri):
     return ("Analyst for " + rn + ".\n" + _rb(rn, ri) +
             "\nCompare CV vs MULTIPLE JDs.\nFor EACH: Title | Match X/100 | Matches | Gaps | Keywords\nOVERALL: best fit + why." +
@@ -478,7 +589,6 @@ Email:
 Phone:
 Location:
 LinkedIn:
-
 --- WORK EXPERIENCE ---
 ### Job 1:
 Title:
@@ -486,37 +596,37 @@ Company:
 From:
 To:
 What you did:
-
 ### Job 2:
 Title:
 Company:
 From:
 To:
 What you did:
-
 --- EDUCATION ---
 Qualification:
 Institution:
 Year:
-
 --- SKILLS ---
 Technical:
 Soft Skills:
 Languages:
-
 --- CERTIFICATIONS ---
 Name:
 Year:
 """
 
-st.set_page_config(page_title="AI CV Builder", page_icon="📄", layout="wide", initial_sidebar_state="expanded")
+# ============================================================
+# STREAMLIT CONFIG + CSS (incl. mobile sidebar fix - Issue #6)
+# ============================================================
+st.set_page_config(page_title="AI CV Builder", page_icon="📄",
+                   layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
 <style>
-    .card-green { background:#d4edda; padding:20px; border-radius:8px; border:1px solid #c3e6cb; margin-bottom:12px; min-height:100px; }
-    .card-yellow { background:#fff3cd; padding:20px; border-radius:8px; border:1px solid #ffeaa7; margin-bottom:12px; min-height:100px; }
-    .card-blue { background:#d1ecf1; padding:20px; border-radius:8px; border:1px solid #bee5eb; margin-bottom:12px; min-height:100px; }
-    .card-purple { background:#e8daef; padding:20px; border-radius:8px; border:1px solid #d7bce8; margin-bottom:12px; min-height:100px; }
+    .card-green  { background:#d4edda; padding:20px; border-radius:8px; border:1px solid #c3e6cb; margin-bottom:8px; min-height:120px; }
+    .card-yellow { background:#fff3cd; padding:20px; border-radius:8px; border:1px solid #ffeaa7; margin-bottom:8px; min-height:120px; }
+    .card-blue   { background:#d1ecf1; padding:20px; border-radius:8px; border:1px solid #bee5eb; margin-bottom:8px; min-height:120px; }
+    .card-purple { background:#e8daef; padding:20px; border-radius:8px; border:1px solid #d7bce8; margin-bottom:8px; min-height:120px; }
     .card-green h3, .card-yellow h3, .card-blue h3, .card-purple h3 { margin-top:0; color:#1a1a2e; }
     .card-green p, .card-yellow p, .card-blue p, .card-purple p { color:#555; margin:0; }
     .hero { background:linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color:white; padding:30px; border-radius:8px; margin-bottom:20px; }
@@ -525,18 +635,56 @@ st.markdown("""
     .stats-bar { background:#e8eaf6; padding:12px; border-radius:8px; margin-top:12px; text-align:center; }
     .region-warning { background:#fff3cd; padding:10px; border-radius:6px; border-left:4px solid #ff9800; margin-bottom:10px; font-size:14px; }
     div[data-testid="stDownloadButton"] button { font-weight: 600; }
+    .onboard {
+        background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
+        color: white; padding: 24px; border-radius: 12px;
+        margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .onboard h2 { color: white; margin: 0 0 12px 0; font-size: 22px; }
+    .onboard p { color: #E8F5E9; font-size: 16px; line-height: 1.9; margin: 0; }
+    .onboard a { color: #FFEB3B; font-weight: bold; text-decoration: underline; }
+
+    /* Issue #6 — keep sidebar close (<<) arrow visible while scrolling on mobile */
+    section[data-testid="stSidebar"] button[kind="header"] {
+        position: fixed !important;
+        top: 10px !important;
+        z-index: 999999 !important;
+    }
+    [data-testid="collapsedControl"] {
+        position: fixed !important;
+        top: 10px !important;
+        left: 10px !important;
+        z-index: 999999 !important;
+        background: rgba(255,255,255,0.95) !important;
+        border-radius: 6px !important;
+        padding: 4px !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
+# ============================================================
+# NAVIGATION STATE (used by both sidebar radio and home cards)
+# ============================================================
+PAGES = ["🏠 Home", "📝 Generate CV", "🔍 CV vs JD", "📊 CV Analysis",
+         "📑 Multi-JD Compare", "🎤 Interview Prep", "🎙️ Mock Interview",
+         "🧑‍💼 Coaching", "⚙️ Settings"]
+
+if "page" not in st.session_state:
+    st.session_state.page = "🏠 Home"
+
+# ============================================================
+# SIDEBAR
+# ============================================================
 with st.sidebar:
     st.markdown("# 📄 AI CV Builder")
     st.markdown("---")
-    page = st.radio("**Navigation**",
-        ["🏠 Home", "📝 Generate CV", "🔍 CV vs JD",
-         "📊 CV Analysis", "📑 Multi-JD Compare",
-         "🎤 Interview Prep", "🎙️ Mock Interview",
-         "🧑‍💼 Coaching", "⚙️ Settings"],
-        label_visibility="collapsed")
+    idx = PAGES.index(st.session_state.page) if st.session_state.page in PAGES else 0
+    selected = st.radio("**Navigation**", PAGES, index=idx, label_visibility="collapsed")
+    if selected != st.session_state.page:
+        st.session_state.page = selected
+        st.rerun()
+    page = st.session_state.page
+
     st.markdown("---")
     st.markdown("**🤖 AI Provider**")
     provider = st.radio("Provider", ["Gemini (FREE)", "OpenAI (Paid)"], label_visibility="collapsed")
@@ -549,6 +697,7 @@ with st.sidebar:
         st.markdown("🔗 [Get FREE Gemini key](https://aistudio.google.com/apikey)")
     else:
         st.markdown("🔗 [Get OpenAI key](https://platform.openai.com/api-keys)")
+
     st.markdown("---")
     st.markdown("**🌍 Target Region** ⭐")
     region = st.selectbox("Region", RL, label_visibility="collapsed", key="region_select",
@@ -557,6 +706,9 @@ with st.sidebar:
     st.caption("📍 **" + region_name + "** format will be used")
     st.caption("SSL: " + SSL_M)
 
+# ============================================================
+# HELPERS
+# ============================================================
 def call_ai(prompt):
     if not api_key:
         st.error("⚠️ Please enter your API key in the sidebar.")
@@ -564,12 +716,16 @@ def call_ai(prompt):
     with st.spinner("🤖 AI is thinking..."):
         return ai_call(prompt, api_key, prov, model_id)
 
-def download_buttons(text, region, base_name="document"):
+def download_buttons(text, region, suffix="Document", name_override=None):
+    """3 download buttons (txt/docx/pdf) with auto candidate-name filenames (Issue #2)."""
     if not text: return
+    name = name_override or extract_name(text)
+    base_name = f"{name}_{suffix}"
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.download_button("💾 Save (.txt)", text, base_name + ".txt", mime="text/plain",
-                           use_container_width=True, key="dl_txt_" + base_name)
+        st.download_button("💾 Save (.txt)", strip_emojis(text), base_name + ".txt",
+                           mime="text/plain", use_container_width=True,
+                           key="dl_txt_" + base_name)
     with col2:
         if HAS_DOCX:
             docx_data = make_docx(text, region)
@@ -578,15 +734,18 @@ def download_buttons(text, region, base_name="document"):
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     use_container_width=True, key="dl_docx_" + base_name)
         else:
-            st.button("📄 Word (need python-docx)", disabled=True, use_container_width=True, key="dl_docx_dis_" + base_name)
+            st.button("📄 Word (need python-docx)", disabled=True,
+                      use_container_width=True, key="dl_docx_dis_" + base_name)
     with col3:
         if HAS_RL:
             pdf_data = make_pdf(text, region)
             if pdf_data:
                 st.download_button("📑 PDF (.pdf)", pdf_data, base_name + ".pdf",
-                    mime="application/pdf", use_container_width=True, key="dl_pdf_" + base_name)
+                    mime="application/pdf", use_container_width=True,
+                    key="dl_pdf_" + base_name)
         else:
-            st.button("📑 PDF (need reportlab)", disabled=True, use_container_width=True, key="dl_pdf_dis_" + base_name)
+            st.button("📑 PDF (need reportlab)", disabled=True,
+                      use_container_width=True, key="dl_pdf_dis_" + base_name)
 
 def region_note(stored_region):
     if stored_region and stored_region != region:
@@ -594,25 +753,68 @@ def region_note(stored_region):
                     '</b> to <b>' + region + '</b>. Click Generate/Improve again to reformat for the new region.</div>',
                     unsafe_allow_html=True)
 
+# ============================================================
+# PAGE: HOME (Issues #3 onboarding + #4 clickable cards)
+# ============================================================
 if page == "🏠 Home":
-    st.markdown('<div class="hero"><h1>📄 AI CV Builder</h1><p>Gemini (FREE) + OpenAI • Dark Mode • PDF/Word Export • Multi-JD Compare<br>Anti-hallucination: AI only uses YOUR data.</p></div>', unsafe_allow_html=True)
-    col1, col2 = st.columns(2, gap="medium")
-    with col1:
-        st.markdown('<div class="card-green"><h3>📝 Generate CV</h3><p>Create region-formatted CV from JD.<br>Word & PDF export.</p></div>', unsafe_allow_html=True)
-        st.markdown('<div class="card-blue"><h3>📊 CV Analysis</h3><p>AI scores ATS compliance.<br>Improve & export.</p></div>', unsafe_allow_html=True)
-    with col2:
-        st.markdown('<div class="card-yellow"><h3>🔍 CV vs JD</h3><p>Compare CV vs JD. Keywords,<br>gaps & cover letter.</p></div>', unsafe_allow_html=True)
-        st.markdown('<div class="card-purple"><h3>📑 Multi-JD</h3><p>Compare CV vs multiple JDs.<br>AI ranks best fit.</p></div>', unsafe_allow_html=True)
-    st.markdown('<div class="stats-bar">🌍 <b>14 Regions</b> &nbsp;•&nbsp; 🤖 <b>Gemini+OpenAI</b> &nbsp;•&nbsp; 📑 <b>PDF/Word Export</b> &nbsp;•&nbsp; 📱 <b>Mobile-friendly</b></div>', unsafe_allow_html=True)
-    st.markdown("---")
-    st.info("💡 **Currently set to:** " + region + " - your CV will be formatted for this region. Change in sidebar anytime.")
+    st.markdown(
+        '<div class="hero"><h1>📄 AI CV Builder</h1>'
+        '<p>Gemini (FREE) + OpenAI • Region-aware • PDF/Word Export • 100+ Mock Interview Domains<br>'
+        'Anti-hallucination: AI only uses YOUR data.</p></div>',
+        unsafe_allow_html=True)
 
+    # ---- Onboarding banner (Issue #3) — only when no API key ----
+    if not api_key:
+        st.markdown("""
+        <div class="onboard">
+            <h2>🆓 First time? Get a FREE Gemini API key in 30 seconds:</h2>
+            <p>
+                <b>Step 1:</b> Click → <a href="https://aistudio.google.com/apikey" target="_blank">https://aistudio.google.com/apikey</a><br>
+                <b>Step 2:</b> Sign in with your Google account<br>
+                <b>Step 3:</b> Click 'Create API Key' → copy it → paste in sidebar<br>
+                <br>
+                <i>It's 100% free with generous daily quota.</i>
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ---- 8 clickable cards in 2x4 grid (Issue #4) ----
+    cards = [
+        ("📝 Generate CV",     "Create a region-formatted CV from any JD.",         "card-green",  "📝 Generate CV"),
+        ("🔍 CV vs JD",        "Compare CV vs JD. Keywords, gaps, cover letter.",   "card-yellow", "🔍 CV vs JD"),
+        ("📊 CV Analysis",     "AI scores ATS compliance. Improve & export.",       "card-blue",   "📊 CV Analysis"),
+        ("📑 Multi-JD Compare","Compare your CV against multiple JDs at once.",     "card-purple", "📑 Multi-JD Compare"),
+        ("🎤 Interview Prep",  "15-20 questions + STAR frameworks from any JD.",    "card-green",  "🎤 Interview Prep"),
+        ("🎙️ Mock Interview", "Practice with AI across 100+ domains.",              "card-yellow", "🎙️ Mock Interview"),
+        ("🧑‍💼 Coaching",     "Career advice on 10+ life and career topics.",       "card-blue",   "🧑‍💼 Coaching"),
+        ("⚙️ Settings",        "Providers, regions, mobile tips, library status.",  "card-purple", "⚙️ Settings"),
+    ]
+    cols = st.columns(2, gap="medium")
+    for i, (title, desc, css_class, target) in enumerate(cards):
+        with cols[i % 2]:
+            st.markdown(f'<div class="{css_class}"><h3>{title}</h3><p>{desc}</p></div>',
+                        unsafe_allow_html=True)
+            if st.button(f"Open  →", key=f"card_{i}", use_container_width=True):
+                st.session_state.page = target
+                st.rerun()
+
+    st.markdown(
+        '<div class="stats-bar">🌍 <b>14 Regions</b> &nbsp;•&nbsp; 🤖 <b>Gemini + OpenAI</b> '
+        '&nbsp;•&nbsp; 📑 <b>PDF / Word Export</b> &nbsp;•&nbsp; 🎙️ <b>100+ Mock Domains</b> '
+        '&nbsp;•&nbsp; 📱 <b>Mobile-friendly</b></div>', unsafe_allow_html=True)
+    st.markdown("---")
+    st.info("💡 **Currently set to:** " + region + " — your CV will be formatted for this region. Change in the sidebar anytime.")
+
+# ============================================================
+# PAGE: GENERATE CV
+# ============================================================
 elif page == "📝 Generate CV":
     st.title("📝 Generate CV")
     st.caption("Currently generating for: **" + region + "** - " + RD_[region]["photo"])
     region_note(st.session_state.get("gen_region"))
     jd_gen = st.text_area("📋 Job Description", height=200, key="gen_jd")
-    info_gen = st.text_area("👤 Your Information", height=400, key="gen_info", value=st.session_state.get("gen_info_val", INFO_T))
+    info_gen = st.text_area("👤 Your Information", height=400, key="gen_info",
+                            value=st.session_state.get("gen_info_val", INFO_T))
     if st.button("✨ Generate CV", type="primary", use_container_width=True):
         if not jd_gen.strip(): st.warning("Please paste a Job Description.")
         elif not info_gen.strip(): st.warning("Please fill in your information.")
@@ -623,11 +825,17 @@ elif page == "📝 Generate CV":
                 st.session_state["gen_region"] = region
                 st.session_state["gen_info_val"] = info_gen
     if "gen_result" in st.session_state:
-        st.markdown("### ✨ Generated CV (formatted for " + st.session_state.get("gen_region", region) + ")")
-        st.text_area("Result", st.session_state["gen_result"], height=500, key="gen_out", label_visibility="collapsed")
+        st.markdown("### ✨ Generated CV (formatted for " +
+                    st.session_state.get("gen_region", region) + ")")
+        st.text_area("Result", st.session_state["gen_result"], height=500,
+                     key="gen_out", label_visibility="collapsed")
         st.markdown("**Download:**")
-        download_buttons(st.session_state["gen_result"], st.session_state.get("gen_region", region), "generated_cv")
+        download_buttons(st.session_state["gen_result"],
+                         st.session_state.get("gen_region", region), "CV")
 
+# ============================================================
+# PAGE: CV vs JD
+# ============================================================
 elif page == "🔍 CV vs JD":
     st.title("🔍 CV vs Job Description")
     st.caption("Currently using region: **" + region + "**")
@@ -648,46 +856,67 @@ elif page == "🔍 CV vs JD":
             result = call_ai(p_cmp(cv_text, jd_cmp, region, RD_[region]))
             if result:
                 st.session_state["cmp_result"] = result
-                st.session_state["cmp_cv"] = cv_text
-                st.session_state["cmp_jd"] = jd_cmp
+                st.session_state["cmp_cv"]     = cv_text
+                st.session_state["cmp_jd"]     = jd_cmp
                 st.session_state["cmp_region"] = region
     if "cmp_result" in st.session_state:
         st.markdown("### 📊 Comparison Result")
-        st.text_area("Result", st.session_state["cmp_result"], height=400, key="cmp_out", label_visibility="collapsed")
+        st.text_area("Result", st.session_state["cmp_result"], height=400,
+                     key="cmp_out", label_visibility="collapsed")
+        # name pulled from the underlying CV so the comparison file has user's name
+        cv_name = extract_name(st.session_state.get("cmp_cv", ""))
+        download_buttons(st.session_state["cmp_result"], region,
+                         "JD_Comparison", name_override=cv_name)
+
         st.markdown("---")
         st.markdown("### ✨ Improve CV with Keywords")
         col_k1, col_k2 = st.columns(2)
         with col_k1:
-            kw_strength = st.radio("Keyword Strength", ["Experience-based", "Force ALL"], key="kw_str", horizontal=True)
+            kw_strength = st.radio("Keyword Strength", ["Experience-based", "Force ALL"],
+                                   key="kw_str", horizontal=True)
         with col_k2:
-            kw_mode = st.radio("Keywords from", ["Auto from JD", "Manual"], key="kw_mode", horizontal=True)
+            kw_mode = st.radio("Keywords from", ["Auto from JD", "Manual"],
+                               key="kw_mode", horizontal=True)
         manual_kw = ""
         if kw_mode == "Manual":
-            manual_kw = st.text_input("Enter keywords (comma-separated)", placeholder="Docker, Kubernetes, CI/CD")
+            manual_kw = st.text_input("Enter keywords (comma-separated)",
+                                      placeholder="Docker, Kubernetes, CI/CD")
         if st.button("✨ Improve CV", type="primary", use_container_width=True):
             strength = "force_all" if kw_strength == "Force ALL" else "experience"
             result = call_ai(p_imp_cmp(st.session_state["cmp_cv"], st.session_state["cmp_result"],
-                                       st.session_state["cmp_jd"], region, RD_[region], manual_kw, strength))
+                                       st.session_state["cmp_jd"], region, RD_[region],
+                                       manual_kw, strength))
             if result:
                 st.session_state["cmp_improved"] = result
-                st.session_state["cmp_region"] = region
+                st.session_state["cmp_region"]   = region
         if "cmp_improved" in st.session_state:
-            st.markdown("#### ✨ Improved CV (formatted for " + st.session_state.get("cmp_region", region) + ")")
-            st.text_area("Improved", st.session_state["cmp_improved"], height=500, key="cmp_imp_out", label_visibility="collapsed")
+            st.markdown("#### ✨ Improved CV (formatted for " +
+                        st.session_state.get("cmp_region", region) + ")")
+            st.text_area("Improved", st.session_state["cmp_improved"], height=500,
+                         key="cmp_imp_out", label_visibility="collapsed")
             st.markdown("**Download Improved CV:**")
-            download_buttons(st.session_state["cmp_improved"], st.session_state.get("cmp_region", region), "improved_cv")
+            download_buttons(st.session_state["cmp_improved"],
+                             st.session_state.get("cmp_region", region),
+                             "Improved_CV")
+
         st.markdown("---")
         st.markdown("### 📨 Cover Letter")
         if st.button("📨 Generate Cover Letter", type="primary", use_container_width=True):
             cv_src = st.session_state.get("cmp_improved", st.session_state.get("cmp_cv", ""))
             result = call_ai(p_cover(cv_src, st.session_state["cmp_jd"], region, RD_[region]))
-            if result:
-                st.session_state["cmp_cl"] = result
+            if result: st.session_state["cmp_cl"] = result
         if "cmp_cl" in st.session_state:
-            st.text_area("Cover Letter", st.session_state["cmp_cl"], height=400, key="cmp_cl_out", label_visibility="collapsed")
+            st.text_area("Cover Letter", st.session_state["cmp_cl"], height=400,
+                         key="cmp_cl_out", label_visibility="collapsed")
             st.markdown("**Download Cover Letter:**")
-            download_buttons(st.session_state["cmp_cl"], region, "cover_letter")
+            cv_name = extract_name(st.session_state.get("cmp_improved",
+                                   st.session_state.get("cmp_cv", st.session_state["cmp_cl"])))
+            download_buttons(st.session_state["cmp_cl"], region,
+                             "Cover_Letter", name_override=cv_name)
 
+# ============================================================
+# PAGE: CV ANALYSIS
+# ============================================================
 elif page == "📊 CV Analysis":
     st.title("📊 CV Analysis")
     st.caption("Analysing against **" + region + "** standards.")
@@ -702,62 +931,96 @@ elif page == "📊 CV Analysis":
             result = call_ai(p_ana(cv_ana, region, RD_[region]))
             if result:
                 st.session_state["ana_result"] = result
-                st.session_state["ana_cv"] = cv_ana
+                st.session_state["ana_cv"]     = cv_ana
                 st.session_state["ana_region"] = region
     if "ana_result" in st.session_state:
         st.markdown("### 📊 Analysis")
-        st.text_area("Analysis", st.session_state["ana_result"], height=400, key="ana_out", label_visibility="collapsed")
+        st.text_area("Analysis", st.session_state["ana_result"], height=400,
+                     key="ana_out", label_visibility="collapsed")
+        cv_name = extract_name(st.session_state.get("ana_cv", ""))
+        download_buttons(st.session_state["ana_result"], region,
+                         "CV_Analysis", name_override=cv_name)
         st.markdown("---")
         if st.button("✨ Improve CV", type="primary", use_container_width=True):
-            result = call_ai(p_imp(st.session_state["ana_cv"], st.session_state["ana_result"], region, RD_[region]))
+            result = call_ai(p_imp(st.session_state["ana_cv"], st.session_state["ana_result"],
+                                   region, RD_[region]))
             if result:
                 st.session_state["ana_improved"] = result
-                st.session_state["ana_region"] = region
+                st.session_state["ana_region"]   = region
         if "ana_improved" in st.session_state:
-            st.markdown("### ✨ Improved CV (formatted for " + st.session_state.get("ana_region", region) + ")")
-            st.text_area("Improved", st.session_state["ana_improved"], height=500, key="ana_imp_out", label_visibility="collapsed")
+            st.markdown("### ✨ Improved CV (formatted for " +
+                        st.session_state.get("ana_region", region) + ")")
+            st.text_area("Improved", st.session_state["ana_improved"], height=500,
+                         key="ana_imp_out", label_visibility="collapsed")
             st.markdown("**Download:**")
-            download_buttons(st.session_state["ana_improved"], st.session_state.get("ana_region", region), "improved_cv_ana")
+            download_buttons(st.session_state["ana_improved"],
+                             st.session_state.get("ana_region", region),
+                             "Improved_CV")
 
+
+# ============================================================
+# PAGE: MULTI-JD COMPARE
+# ============================================================
 elif page == "📑 Multi-JD Compare":
     st.title("📑 Multi-JD Compare")
     st.caption("Using region: **" + region + "**")
     cv_multi_file = st.file_uploader("Upload CV", type=["pdf", "docx", "txt"], key="multi_file")
     cv_multi_input = st.text_area("Or paste CV", height=200, key="multi_cv_input")
     cv_multi = read_file(cv_multi_file) if cv_multi_file else cv_multi_input
-    n_jds = st.number_input("Number of JDs to compare", min_value=2, max_value=10, value=2, key="multi_n")
+    n_jds = st.number_input("Number of JDs to compare", min_value=2, max_value=10,
+                            value=2, key="multi_n")
     jd_texts = []
     for i in range(int(n_jds)):
-        jd_texts.append(st.text_area("📋 JD " + str(i+1), height=150, key="multi_jd_" + str(i)))
+        jd_texts.append(st.text_area("📋 JD " + str(i + 1), height=150,
+                                     key="multi_jd_" + str(i)))
     if st.button("📑 Compare All JDs", type="primary", use_container_width=True):
-        if not cv_multi.strip(): st.warning("Please provide a CV.")
+        if not cv_multi.strip():
+            st.warning("Please provide a CV.")
         else:
-            combined = "\n\n".join(["--- JD " + str(i+1) + " ---\n" + t for i, t in enumerate(jd_texts) if t.strip()])
-            if not combined.strip(): st.warning("Please fill in at least one JD.")
+            combined = "\n\n".join(
+                ["--- JD " + str(i + 1) + " ---\n" + t
+                 for i, t in enumerate(jd_texts) if t.strip()])
+            if not combined.strip():
+                st.warning("Please fill in at least one JD.")
             else:
                 result = call_ai(p_multi(cv_multi, combined, region, RD_[region]))
-                if result: st.session_state["multi_result"] = result
+                if result:
+                    st.session_state["multi_result"] = result
+                    st.session_state["multi_cv"]     = cv_multi
     if "multi_result" in st.session_state:
         st.markdown("### 📊 Comparison Results")
-        st.text_area("Results", st.session_state["multi_result"], height=500, key="multi_out", label_visibility="collapsed")
+        st.text_area("Results", st.session_state["multi_result"], height=500,
+                     key="multi_out", label_visibility="collapsed")
         st.markdown("**Download:**")
-        download_buttons(st.session_state["multi_result"], region, "multi_jd_results")
+        cv_name = extract_name(st.session_state.get("multi_cv", ""))
+        download_buttons(st.session_state["multi_result"], region,
+                         "Multi_JD_Results", name_override=cv_name)
 
+# ============================================================
+# PAGE: INTERVIEW PREP
+# ============================================================
 elif page == "🎤 Interview Prep":
     st.title("🎤 Interview Preparation")
     st.info("💡 Questions come from AI knowledge of interview patterns (no web search).")
     jd_intv = st.text_area("📋 Job Description", height=250, key="intv_jd")
     if st.button("🎯 Generate Questions", type="primary", use_container_width=True):
-        if not jd_intv.strip(): st.warning("Please paste a JD.")
+        if not jd_intv.strip():
+            st.warning("Please paste a JD.")
         else:
             result = call_ai(p_int(jd_intv))
-            if result: st.session_state["intv_result"] = result
+            if result:
+                st.session_state["intv_result"] = result
     if "intv_result" in st.session_state:
         st.markdown("### 🎯 Questions + Answer Frameworks")
-        st.text_area("Questions", st.session_state["intv_result"], height=600, key="intv_out", label_visibility="collapsed")
+        st.text_area("Questions", st.session_state["intv_result"], height=600,
+                     key="intv_out", label_visibility="collapsed")
         st.markdown("**Download:**")
-        download_buttons(st.session_state["intv_result"], region, "interview_questions")
+        download_buttons(st.session_state["intv_result"], region,
+                         "Interview_Questions", name_override="Candidate")
 
+# ============================================================
+# PAGE: MOCK INTERVIEW (Issue #5 — 100+ domains, 2-step picker)
+# ============================================================
 elif page == "🎙️ Mock Interview":
     st.title("🎙️ Mock Interview")
     st.caption("AI generates questions, you answer, AI evaluates with STAR + score.")
@@ -767,21 +1030,38 @@ elif page == "🎙️ Mock Interview":
                           horizontal=True, key="mock_src", label_visibility="collapsed")
         if "JD" in source:
             mock_jd = st.text_area("Paste JD", height=200, key="mock_jd")
+            mock_domain = None
         else:
-            mock_domain = st.selectbox("Select Domain", DOMAINS, key="mock_dom")
-        n_q = st.radio("Number of questions", ["10", "15", "20"], index=1, horizontal=True, key="mock_n")
+            cat_col, dom_col = st.columns([1, 2])
+            with cat_col:
+                category = st.selectbox("Category",
+                                        list(DOMAIN_GROUPS.keys()),
+                                        key="mock_cat")
+            with dom_col:
+                mock_domain = st.selectbox("Domain / Field",
+                                           DOMAIN_GROUPS[category],
+                                           key="mock_dom")
+            st.caption(f"📚 **{len(DOMAIN_GROUPS[category])}** option(s) under "
+                       f"**{category}** • Total available across categories: "
+                       f"**{sum(len(v) for v in DOMAIN_GROUPS.values())}**")
+        n_q = st.radio("Number of questions", ["10", "15", "20"], index=1,
+                       horizontal=True, key="mock_n")
     if st.button("🎯 Generate Questions", type="primary", use_container_width=True):
         if "JD" in source:
-            if not mock_jd.strip(): st.warning("Please paste a JD.")
+            if not mock_jd.strip():
+                st.warning("Please paste a JD.")
             else:
                 result = call_ai(p_mock_jd(mock_jd, int(n_q)))
-                if result: st.session_state["mock_questions"] = result
+                if result:
+                    st.session_state["mock_questions"] = result
         else:
             result = call_ai(p_mock_dom(mock_domain, int(n_q)))
-            if result: st.session_state["mock_questions"] = result
+            if result:
+                st.session_state["mock_questions"] = result
     if "mock_questions" in st.session_state:
         st.markdown("### 📋 Generated Questions")
-        st.text_area("Questions", st.session_state["mock_questions"], height=350, key="mock_q_out", label_visibility="collapsed")
+        st.text_area("Questions", st.session_state["mock_questions"], height=350,
+                     key="mock_q_out", label_visibility="collapsed")
         st.markdown("---")
         st.markdown("### 📝 Practice & Evaluate")
         mock_q = st.text_area("Question", height=80, key="mock_q_in")
@@ -791,31 +1071,45 @@ elif page == "🎙️ Mock Interview":
                 st.warning("Please provide both question and answer.")
             else:
                 result = call_ai(p_mock_eval(mock_q, mock_a))
-                if result: st.session_state["mock_feedback"] = result
+                if result:
+                    st.session_state["mock_feedback"] = result
         if "mock_feedback" in st.session_state:
             st.markdown("### 📊 AI Feedback")
-            st.text_area("Feedback", st.session_state["mock_feedback"], height=400, key="mock_fb_out", label_visibility="collapsed")
+            st.text_area("Feedback", st.session_state["mock_feedback"], height=400,
+                         key="mock_fb_out", label_visibility="collapsed")
             st.markdown("**Download:**")
-            download_buttons(st.session_state["mock_feedback"], region, "mock_feedback")
+            download_buttons(st.session_state["mock_feedback"], region,
+                             "Mock_Feedback", name_override="Candidate")
 
+# ============================================================
+# PAGE: COACHING
+# ============================================================
 elif page == "🧑‍💼 Coaching":
     st.title("🧑‍💼 Career Coaching")
-    topic = st.selectbox("Topic", ["Career Change", "Salary Negotiation", "Skill Development", "Job Search",
-                                    "Interview Confidence", "LinkedIn", "Networking", "Promotion",
-                                    "Work-Life Balance", "Remote Work"], key="coach_topic")
+    topic = st.selectbox("Topic",
+        ["Career Change", "Salary Negotiation", "Skill Development", "Job Search",
+         "Interview Confidence", "LinkedIn", "Networking", "Promotion",
+         "Work-Life Balance", "Remote Work"], key="coach_topic")
     context = st.text_area("Your situation/context", height=200, key="coach_ctx",
                            placeholder="Describe where you are, what you want, and challenges...")
     if st.button("💡 Get Advice", type="primary", use_container_width=True):
-        if not context.strip(): st.warning("Please describe your situation.")
+        if not context.strip():
+            st.warning("Please describe your situation.")
         else:
             result = call_ai(p_coach(topic, context))
-            if result: st.session_state["coach_result"] = result
+            if result:
+                st.session_state["coach_result"] = result
     if "coach_result" in st.session_state:
         st.markdown("### 💡 Personalised Advice")
-        st.text_area("Advice", st.session_state["coach_result"], height=500, key="coach_out", label_visibility="collapsed")
+        st.text_area("Advice", st.session_state["coach_result"], height=500,
+                     key="coach_out", label_visibility="collapsed")
         st.markdown("**Download:**")
-        download_buttons(st.session_state["coach_result"], region, "career_advice")
+        download_buttons(st.session_state["coach_result"], region,
+                         "Career_Advice", name_override="Candidate")
 
+# ============================================================
+# PAGE: SETTINGS
+# ============================================================
 elif page == "⚙️ Settings":
     st.title("⚙️ Settings & Info")
     with st.container(border=True):
@@ -825,22 +1119,38 @@ elif page == "⚙️ Settings":
     with st.container(border=True):
         st.markdown("### 🌍 Region-Aware CV Generation")
         st.markdown("CV format adapts based on selected region:")
-        st.markdown("- **UK/US/Canada/Australia**: NO photo, achievement-focused")
-        st.markdown("- **Germany/Japan/China**: Photo placeholder included")
-        st.markdown("- **India**: Declaration statement at bottom")
-        st.markdown("- **Italy**: GDPR privacy clause")
-        st.markdown("- **France/EU**: CEFR language levels")
-        st.markdown("- **UAE/Gulf**: Nationality + visa status mandatory")
+        st.markdown("- **UK / US / Canada / Australia:** NO photo, achievement-focused")
+        st.markdown("- **Germany / Japan / China / Spain / Italy / UAE:** Photo placeholder included")
+        st.markdown("- **India:** Declaration statement at bottom")
+        st.markdown("- **Italy:** GDPR privacy clause")
+        st.markdown("- **France / EU:** CEFR language levels")
+        st.markdown("- **UAE / Gulf:** Nationality + visa status mandatory")
         st.markdown("Change region in sidebar anytime and regenerate to update format.")
     with st.container(border=True):
         st.markdown("### 💾 Three Download Formats")
-        st.markdown("- **💾 Save (.txt)**: Plain text")
-        st.markdown("- **📄 Word (.docx)**: Formatted with region-specific styling, photo placeholder if needed")
-        st.markdown("- **📑 PDF (.pdf)**: Professional PDF, photo box for relevant regions")
+        st.markdown("- **💾 Save (.txt):** Plain text")
+        st.markdown("- **📄 Word (.docx):** Formatted with region-specific styling, photo placeholder if needed")
+        st.markdown("- **📑 PDF (.pdf):** Professional PDF, photo box for relevant regions")
+        st.markdown("Files are auto-named using the candidate's name "
+                    "(e.g. *Vitthal_Kallappa_CV.pdf*).")
+    with st.container(border=True):
+        st.markdown("### 🎙️ Mock Interview Coverage")
+        st.markdown(f"**{sum(len(v) for v in DOMAIN_GROUPS.values())}** "
+                    f"domains across **{len(DOMAIN_GROUPS)}** categories, "
+                    "including Technology, Engineering, Medical, Indian Education Streams "
+                    "(PUC PCMB/PCMC/Commerce/Arts, BCA, BBA, B.A/B.Com/B.Sc, MBA, M.Sc, M.A, M.Com), "
+                    "Law, Agriculture, Arts & Social Sciences, Creative & Media, "
+                    "Government Exams (UPSC/Banking/Defence/Police), and Skilled Trades.")
     with st.container(border=True):
         st.markdown("### 📱 Use on Phone")
         st.markdown("**iPhone (Safari):** Share → Add to Home Screen")
         st.markdown("**Android (Chrome):** Menu → Add to Home Screen")
+        st.markdown("Tip: the sidebar close **«** arrow is now pinned at the top — "
+                    "you can close the menu without scrolling back up.")
     docx_status = "OK" if HAS_DOCX else "Missing"
-    rl_status = "OK" if HAS_RL else "Missing"
-    st.caption("SSL: " + SSL_M + " | python-docx: " + docx_status + " | reportlab: " + rl_status)
+    rl_status   = "OK" if HAS_RL   else "Missing"
+    pdf_status  = "OK" if HAS_PDF  else "Missing"
+    req_status  = "OK" if HAS_REQ  else "Missing"
+    st.caption(f"SSL: {SSL_M} | python-docx: {docx_status} | reportlab: {rl_status} "
+               f"| pypdf: {pdf_status} | requests: {req_status}")
+
