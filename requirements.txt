@@ -3,3 +3,4 @@ python-docx
 pypdf
 requests
 certifi
+reportlab
