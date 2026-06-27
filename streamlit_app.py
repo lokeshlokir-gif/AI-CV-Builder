@@ -833,32 +833,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-
-# ============================================================
-# PWA: Make the app installable on iPhone/Android home screen
-# ============================================================
-st.markdown("""
-<link rel="manifest" href="./app/static/manifest.json">
-<meta name="theme-color" content="#4CAF50">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="CV Builder">
-<meta name="application-name" content="CV Builder">
-<link rel="apple-touch-icon" href="./app/static/icon-192.png">
-<link rel="icon" type="image/png" sizes="192x192" href="./app/static/icon-192.png">
-<link rel="icon" type="image/png" sizes="512x512" href="./app/static/icon-512.png">
-""", unsafe_allow_html=True)
-
-
-
-# ============================================================
-# MOBILE: aggressive auto-close sidebar after tab pick
-# ============================================================
-components.html("""
-<script>
-... (your existing JS code continues unchanged)
-
 # ============================================================
 # MOBILE: aggressive auto-close sidebar after tab pick (Issue #3)
 # Polls every 500ms; on radio change, retries close up to 12 times
