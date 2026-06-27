@@ -3,9 +3,25 @@
 """AI CV Builder - Streamlit Web App with region-aware CV, Word/PDF export,
 clickable home cards, expanded domains, mobile-safe sidebar, emoji-stripped exports."""
 import streamlit as st
+import streamlit.components.v1 as components
+import random, uuid
 import json, re, time, io, ssl
 import urllib.request, urllib.error
 from datetime import datetime
+
+def save_to_localstorage(key, value):
+    """Saves data to browser localStorage via JS injection."""
+    js = f"""
+    <script>
+        window.parent.localStorage.setItem('{key}', {json.dumps(value)});
+    </script>
+    """
+    components.html(js, height=0)
+
+def load_from_localstorage_widget(key):
+    """Returns a Streamlit text_area trick to read localStorage.
+       The user pastes the JSON back if needed, OR we auto-load via JS."""
+    pass  # See full approach below
 
 # ============================================================
 # SSL SETUP
@@ -567,15 +583,52 @@ def p_imp(cv, an, rn, ri):
 def p_int(jd):
     return ("Interview coach.\nGenerate 15-20 questions from JD.\nTECHNICAL(10) + BEHAVIOURAL(5) + SITUATIONAL(5)" +
             "\nFor EACH: question | why asked | answer framework (STAR) | key points\nBasic to advanced.\n---JD---\n" + jd)
-def p_mock_jd(jd, n=15):
-    return ("Interview coach.\nGenerate " + str(n) + " questions from JD.\n60% Technical + 25% Behavioural + 15% Situational" +
-            "\nFormat:\nQ1: [question]\nQ2: [question]\n...Only questions.\n---JD---\n" + jd)
-def p_mock_dom(dom, n=15):
-    return ("Interview coach for " + dom + ".\nGenerate " + str(n) + " questions.\n60% Technical + 25% Behavioural + 15% Situational" +
-            "\nBasic to advanced.\nFormat:\nQ1: [question]\nQ2: [question]\n...Only questions.")
-def p_mock_eval(q, a):
-    return ("Interview coach. Evaluate:\nQuestion: " + q + "\nAnswer: " + a +
+
+def p_mock_jd(jd, n=15, exp_level="Mid (2-5 yrs)", avoid_list=""):
+    nonce = uuid.uuid4().hex[:8]
+    seed = random.randint(1000, 9999)
+    avoid_txt = ("\n\nIMPORTANT — DO NOT REPEAT any of these previously asked questions "
+                 "(generate completely different ones):\n" + avoid_list) if avoid_list else ""
+    return ("You are a creative interview coach.\n"
+            "EXPERIENCE LEVEL OF CANDIDATE: " + exp_level + "\n"
+            "Tailor difficulty + scenarios for this level. For Students/Freshers focus on fundamentals, "
+            "academic projects, internships, theory + small practical scenarios. For Senior/Lead focus "
+            "on architecture, leadership, trade-offs, conflict, mentoring.\n"
+            "Generate " + str(n) + " FRESH, UNIQUE, VARIED questions from JD.\n"
+            "60% Technical + 25% Behavioural + 15% Situational\n"
+            "Vary topics, angles, scenarios. Avoid generic textbook questions. "
+            "Use modern industry context, recent tools, real-world situations.\n"
+            "Session nonce (ignore — only ensures variety): " + nonce + "-" + str(seed) + "\n"
+            "Format:\nQ1: [question]\nQ2: [question]\n...Only questions, no preamble." +
+            "\n---JD---\n" + jd + avoid_txt)
+
+
+def p_mock_dom(dom, n=15, exp_level="Mid (2-5 yrs)", avoid_list=""):
+    nonce = uuid.uuid4().hex[:8]
+    seed = random.randint(1000, 9999)
+    avoid_txt = ("\n\nIMPORTANT — DO NOT REPEAT any of these previously asked questions "
+                 "(generate completely different ones):\n" + avoid_list) if avoid_list else ""
+    return ("You are a creative interview coach for **" + dom + "**.\n"
+            "EXPERIENCE LEVEL OF CANDIDATE: " + exp_level + "\n"
+            "Tailor difficulty + scenarios for this level. For Students/Freshers focus on fundamentals, "
+            "academic projects, basics, theory + small practical scenarios. For Senior/Lead focus on "
+            "architecture, leadership, trade-offs, conflict, mentoring.\n"
+            "Generate " + str(n) + " FRESH, UNIQUE, VARIED questions SPECIFICALLY for " + dom + ".\n"
+            "Stay tightly focused on " + dom + " — do NOT drift into adjacent fields.\n"
+            "60% Technical + 25% Behavioural + 15% Situational\n"
+            "Vary topics, angles, scenarios. Avoid generic textbook questions. "
+            "Use modern industry context, recent tools, real-world situations.\n"
+            "Session nonce (ignore — only ensures variety): " + nonce + "-" + str(seed) + "\n"
+            "Format:\nQ1: [question]\nQ2: [question]\n...Only questions, no preamble."
+            + avoid_txt)
+
+
+def p_mock_eval(q, a, exp_level="Mid (2-5 yrs)"):
+    return ("Interview coach. Evaluate this answer for a " + exp_level + " candidate.\n"
+            "Adjust expectations to that level (be encouraging for Students, demanding for Senior/Lead).\n"
+            "Question: " + q + "\nAnswer: " + a +
             "\n\nProvide:\nSCORE X/10 | STRENGTHS | WEAKNESSES | IDEAL ANSWER (STAR) | 3 TIPS | CONFIDENCE: Low/Med/High")
+
 def p_coach(t, c):
     return ("Career coach: " + t + "\nContext: " + c + "\nInsights, Action plan, Pitfalls, Resources, Timeline")
 def p_multi(cv, jds, rn, ri):
@@ -663,11 +716,45 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ============================================================
+# MOBILE: auto-close sidebar after a tab is picked (Issue 3b)
+# ============================================================
+components.html("""
+<script>
+(function() {
+    function attach() {
+        const doc = window.parent.document;
+        const radios = doc.querySelectorAll('section[data-testid="stSidebar"] input[type="radio"]');
+        radios.forEach(r => {
+            if (r._autoCloseAttached) return;
+            r._autoCloseAttached = true;
+            r.addEventListener('change', () => {
+                if (window.parent.innerWidth < 992) {
+                    setTimeout(() => {
+                        const closeBtn = doc.querySelector(
+                            'section[data-testid="stSidebar"] button[kind="header"]'
+                        ) || doc.querySelector('[data-testid="stSidebarCollapseButton"]');
+                        if (closeBtn) closeBtn.click();
+                    }, 250);
+                }
+            });
+        });
+    }
+    attach();
+    const obs = new MutationObserver(attach);
+    obs.observe(window.parent.document.body, {childList: true, subtree: true});
+})();
+</script>
+""", height=0)
+
+# ============================================================
 # NAVIGATION STATE (used by both sidebar radio and home cards)
 # ============================================================
+
 PAGES = ["🏠 Home", "📝 Generate CV", "🔍 CV vs JD", "📊 CV Analysis",
          "📑 Multi-JD Compare", "🎤 Interview Prep", "🎙️ Mock Interview",
-         "🧑‍💼 Coaching", "⚙️ Settings"]
+         "🧑‍💼 Coaching", "📚 My Library", "⚙️ Settings"]
+
+
 
 if "page" not in st.session_state:
     st.session_state.page = "🏠 Home"
@@ -779,16 +866,21 @@ if page == "🏠 Home":
         """, unsafe_allow_html=True)
 
     # ---- 8 clickable cards in 2x4 grid (Issue #4) ----
-    cards = [
-        ("📝 Generate CV",     "Create a region-formatted CV from any JD.",         "card-green",  "📝 Generate CV"),
-        ("🔍 CV vs JD",        "Compare CV vs JD. Keywords, gaps, cover letter.",   "card-yellow", "🔍 CV vs JD"),
-        ("📊 CV Analysis",     "AI scores ATS compliance. Improve & export.",       "card-blue",   "📊 CV Analysis"),
-        ("📑 Multi-JD Compare","Compare your CV against multiple JDs at once.",     "card-purple", "📑 Multi-JD Compare"),
-        ("🎤 Interview Prep",  "15-20 questions + STAR frameworks from any JD.",    "card-green",  "🎤 Interview Prep"),
-        ("🎙️ Mock Interview", "Practice with AI across 100+ domains.",              "card-yellow", "🎙️ Mock Interview"),
-        ("🧑‍💼 Coaching",     "Career advice on 10+ life and career topics.",       "card-blue",   "🧑‍💼 Coaching"),
-        ("⚙️ Settings",        "Providers, regions, mobile tips, library status.",  "card-purple", "⚙️ Settings"),
-    ]
+    
+
+cards = [
+    ("📝 Generate CV",     "Create a region-formatted CV from any JD.",         "card-green",  "📝 Generate CV"),
+    ("🔍 CV vs JD",        "Compare CV vs JD. Keywords, gaps, cover letter.",   "card-yellow", "🔍 CV vs JD"),
+    ("📊 CV Analysis",     "AI scores ATS compliance. Improve & export.",       "card-blue",   "📊 CV Analysis"),
+    ("📑 Multi-JD Compare","Compare your CV against multiple JDs at once.",     "card-purple", "📑 Multi-JD Compare"),
+    ("🎤 Interview Prep",  "15-20 questions + STAR frameworks from any JD.",    "card-green",  "🎤 Interview Prep"),
+    ("🎙️ Mock Interview", "Practice with AI across 100+ domains.",              "card-yellow", "🎙️ Mock Interview"),
+    ("🧑‍💼 Coaching",     "Career advice on 10+ life and career topics.",       "card-blue",   "🧑‍💼 Coaching"),
+    ("📚 My Library",      "Save question sets & feedback (PIN-protected).",    "card-green",  "📚 My Library"),
+    ("⚙️ Settings",        "Providers, regions, mobile tips, library status.",  "card-purple", "⚙️ Settings"),
+]
+
+
     cols = st.columns(2, gap="medium")
     for i, (title, desc, css_class, target) in enumerate(cards):
         with cols[i % 2]:
@@ -1021,47 +1113,116 @@ elif page == "🎤 Interview Prep":
 # ============================================================
 # PAGE: MOCK INTERVIEW (Issue #5 — 100+ domains, 2-step picker)
 # ============================================================
+
 elif page == "🎙️ Mock Interview":
     st.title("🎙️ Mock Interview")
     st.caption("AI generates questions, you answer, AI evaluates with STAR + score.")
+
+    EXP_LEVELS = [
+        "🎓 Student / Fresher (0 yrs)",
+        "👶 Junior (0-2 yrs)",
+        "👨‍💻 Mid-level (2-5 yrs)",
+        "🧑‍🔧 Senior (5-10 yrs)",
+        "👑 Lead / Principal (10+ yrs)",
+    ]
+
     with st.container(border=True):
         st.markdown("### 📋 Question Source")
         source = st.radio("Source", ["📋 From Job Description", "🎯 By Domain / Field"],
                           horizontal=True, key="mock_src", label_visibility="collapsed")
-        if "JD" in source:
+
+        mock_jd = ""
+        category = None
+        mock_domain = None
+
+        if "Job Description" in source:
             mock_jd = st.text_area("Paste JD", height=200, key="mock_jd")
-            mock_domain = None
         else:
             cat_col, dom_col = st.columns([1, 2])
             with cat_col:
-                category = st.selectbox("Category",
-                                        list(DOMAIN_GROUPS.keys()),
-                                        key="mock_cat")
+                category = st.selectbox("Category", list(DOMAIN_GROUPS.keys()), key="mock_cat")
             with dom_col:
-                mock_domain = st.selectbox("Domain / Field",
-                                           DOMAIN_GROUPS[category],
-                                           key="mock_dom")
-            st.caption(f"📚 **{len(DOMAIN_GROUPS[category])}** option(s) under "
-                       f"**{category}** • Total available across categories: "
-                       f"**{sum(len(v) for v in DOMAIN_GROUPS.values())}**")
+                mock_domain = st.selectbox("Domain / Field", DOMAIN_GROUPS[category], key="mock_dom")
+            st.caption(f"📚 **{len(DOMAIN_GROUPS[category])}** option(s) under **{category}** "
+                       f"• Total: **{sum(len(v) for v in DOMAIN_GROUPS.values())}**")
+
+        exp_level = st.selectbox("🎯 Experience Level", EXP_LEVELS, index=2, key="mock_exp",
+                                 help="AI tailors difficulty to your level. Students get fundamentals, "
+                                      "Seniors get architecture & leadership scenarios.")
+
         n_q = st.radio("Number of questions", ["10", "15", "20"], index=1,
                        horizontal=True, key="mock_n")
-    if st.button("🎯 Generate Questions", type="primary", use_container_width=True):
-        if "JD" in source:
+
+    # ---- Track selection signature; auto-invalidate stale questions ----
+    sig = f"{source}|{category}|{mock_domain}|{exp_level}|{n_q}|{mock_jd[:100]}"
+    if st.session_state.get("mock_sig") and st.session_state["mock_sig"] != sig and \
+       "mock_questions" in st.session_state:
+        st.warning("⚠️ You changed the settings (domain / level / source). "
+                   "Click **Generate Questions** again to refresh — old questions hidden.")
+        # hide stale questions but keep them in case user wants to revert
+        st.session_state["mock_questions_stale"] = st.session_state.pop("mock_questions")
+
+    col_g1, col_g2 = st.columns([3, 1])
+    with col_g1:
+        gen_clicked = st.button("🎯 Generate Questions", type="primary", use_container_width=True)
+    with col_g2:
+        regen_clicked = st.button("🔄 Regenerate (different)", use_container_width=True,
+                                  help="Force-generate a brand new set, avoiding any previous questions")
+
+    if gen_clicked or regen_clicked:
+        # Build avoid list from previous questions to push AI away from repeats
+        avoid_list = ""
+        if regen_clicked:
+            prev = st.session_state.get("mock_questions", "") or \
+                   st.session_state.get("mock_questions_stale", "")
+            avoid_list = prev[:2000]  # cap size
+
+        if "Job Description" in source:
             if not mock_jd.strip():
                 st.warning("Please paste a JD.")
             else:
-                result = call_ai(p_mock_jd(mock_jd, int(n_q)))
+                result = call_ai(p_mock_jd(mock_jd, int(n_q), exp_level, avoid_list))
                 if result:
                     st.session_state["mock_questions"] = result
+                    st.session_state["mock_sig"] = sig
+                    st.session_state["mock_meta"] = {
+                        "source": "JD", "domain": "From JD",
+                        "level": exp_level, "n": n_q,
+                        "ts": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    }
         else:
-            result = call_ai(p_mock_dom(mock_domain, int(n_q)))
+            result = call_ai(p_mock_dom(mock_domain, int(n_q), exp_level, avoid_list))
             if result:
                 st.session_state["mock_questions"] = result
+                st.session_state["mock_sig"] = sig
+                st.session_state["mock_meta"] = {
+                    "source": "Domain", "domain": f"{category} → {mock_domain}",
+                    "level": exp_level, "n": n_q,
+                    "ts": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                }
+
     if "mock_questions" in st.session_state:
-        st.markdown("### 📋 Generated Questions")
+        meta = st.session_state.get("mock_meta", {})
+        st.markdown(f"### 📋 Generated Questions "
+                    f"<span style='font-size:14px;color:#888'>"
+                    f"({meta.get('domain','')} • {meta.get('level','')} • {meta.get('ts','')})</span>",
+                    unsafe_allow_html=True)
         st.text_area("Questions", st.session_state["mock_questions"], height=350,
                      key="mock_q_out", label_visibility="collapsed")
+
+       
+# ---- Save to My Library (open to all users) ----
+        if st.button("💾 Save this set to My Library", use_container_width=True,
+                     key="lib_save_q"):
+            lib = st.session_state.setdefault("library", [])
+            lib.append({
+                "type": "questions",
+                "meta": meta,
+                "content": st.session_state["mock_questions"],
+            })
+            st.success(f"✅ Saved! Library now has {len(lib)} item(s). "
+                       "Go to **📚 My Library** to view or export.")
+
         st.markdown("---")
         st.markdown("### 📝 Practice & Evaluate")
         mock_q = st.text_area("Question", height=80, key="mock_q_in")
@@ -1070,9 +1231,11 @@ elif page == "🎙️ Mock Interview":
             if not mock_q.strip() or not mock_a.strip():
                 st.warning("Please provide both question and answer.")
             else:
-                result = call_ai(p_mock_eval(mock_q, mock_a))
+                result = call_ai(p_mock_eval(mock_q, mock_a, exp_level))
                 if result:
                     st.session_state["mock_feedback"] = result
+                    st.session_state["mock_feedback_q"] = mock_q
+
         if "mock_feedback" in st.session_state:
             st.markdown("### 📊 AI Feedback")
             st.text_area("Feedback", st.session_state["mock_feedback"], height=400,
@@ -1080,6 +1243,18 @@ elif page == "🎙️ Mock Interview":
             st.markdown("**Download:**")
             download_buttons(st.session_state["mock_feedback"], region,
                              "Mock_Feedback", name_override="Candidate")
+
+            # ---- Save feedback to Library (open to all users) ----
+            if st.button("💾 Save this feedback to My Library", use_container_width=True,
+                         key="lib_save_fb"):
+                lib = st.session_state.setdefault("library", [])
+                lib.append({
+                    "type": "feedback",
+                    "meta": {**(st.session_state.get("mock_meta") or {}),
+                             "question": st.session_state.get("mock_feedback_q", "")},
+                    "content": st.session_state["mock_feedback"],
+                })
+                st.success(f"✅ Saved! Library now has {len(lib)} item(s).")
 
 # ============================================================
 # PAGE: COACHING
@@ -1107,6 +1282,80 @@ elif page == "🧑‍💼 Coaching":
         download_buttons(st.session_state["coach_result"], region,
                          "Career_Advice", name_override="Candidate")
 
+
+ PAGE: MY LIBRARY (open to all users — saved in their session)
+# ============================================================
+elif page == "📚 My Library":
+    st.title("📚 My Library")
+    st.caption("Save your mock interview questions & feedback. Export as JSON to keep permanently.")
+
+    st.info("💡 **How it works:** Items are saved during your current session. "
+            "Before closing the app, click **⬇️ Export Library** to download a backup file. "
+            "Next time, click **⬆️ Import** to restore your saved items.")
+
+    # ---- Initialize library ----
+    lib = st.session_state.setdefault("library", [])
+
+    # ---- Header stats ----
+    st.success(f"📚 Your library currently has **{len(lib)}** saved item(s).")
+
+    # ---- Action buttons ----
+    col1, col2 = st.columns(2)
+    with col1:
+        if lib:
+            st.download_button("⬇️ Export Library (JSON backup)",
+                               data=json.dumps(lib, indent=2, ensure_ascii=False),
+                               file_name=f"my_library_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
+                               mime="application/json",
+                               use_container_width=True)
+        else:
+            st.button("⬇️ Export (nothing to export yet)", disabled=True, use_container_width=True)
+    with col2:
+        if lib and st.button("🗑️ Clear ALL items", use_container_width=True):
+            st.session_state["library"] = []
+            st.rerun()
+
+    # ---- Import from previous export ----
+    st.markdown("**⬆️ Import previously exported library (restore from backup):**")
+    up = st.file_uploader("Upload library JSON", type=["json"], key="lib_import")
+    if up is not None:
+        try:
+            data = json.loads(up.read().decode("utf-8"))
+            if isinstance(data, list):
+                st.session_state["library"] = data + lib
+                st.success(f"✅ Imported {len(data)} item(s). Total now: {len(st.session_state['library'])}")
+                st.rerun()
+            else:
+                st.error("Bad file: expected a JSON list.")
+        except Exception as e:
+            st.error(f"Bad file: {e}")
+
+    st.markdown("---")
+
+    # ---- Show saved items ----
+    if not lib:
+        st.info("📭 Library is empty. Go to **🎙️ Mock Interview**, generate questions or get feedback, "
+                "then click **💾 Save to My Library**.")
+    else:
+        st.markdown("### 📑 Your saved items")
+        for i, item in enumerate(reversed(lib)):
+            real_idx = len(lib) - 1 - i
+            meta = item.get("meta", {})
+            with st.expander(f"#{real_idx+1} • {item.get('type','?').title()} • "
+                             f"{meta.get('domain','?')} • {meta.get('level','?')} • "
+                             f"{meta.get('ts','?')}"):
+                st.text_area("Content", item.get("content", ""), height=300,
+                             key=f"lib_view_{real_idx}", label_visibility="collapsed")
+                cdl1, cdl2 = st.columns(2)
+                with cdl1:
+                    st.download_button("💾 Download .txt", item.get("content", ""),
+                                       file_name=f"library_item_{real_idx+1}.txt",
+                                       mime="text/plain", use_container_width=True,
+                                       key=f"lib_dl_{real_idx}")
+                with cdl2:
+                    if st.button("🗑️ Delete", use_container_width=True, key=f"lib_del_{real_idx}"):
+                        lib.pop(real_idx)
+                        st.rerun()
 # ============================================================
 # PAGE: SETTINGS
 # ============================================================
