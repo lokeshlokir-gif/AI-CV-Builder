@@ -1,27 +1,14 @@
 
 #!/usr/bin/env python3
-"""AI CV Builder - Streamlit Web App with region-aware CV, Word/PDF export,
-clickable home cards, expanded domains, mobile-safe sidebar, emoji-stripped exports."""
+"""AI CV Builder - Streamlit Web App
+Region-aware CV (14 regions), Word/PDF export, clickable home cards,
+100+ mock interview domains, experience-level tailoring, anti-repeat AI,
+mobile-safe sidebar, emoji-stripped exports, open My Library."""
 import streamlit as st
 import streamlit.components.v1 as components
-import random, uuid
-import json, re, time, io, ssl
+import json, re, time, io, ssl, random, uuid
 import urllib.request, urllib.error
 from datetime import datetime
-
-def save_to_localstorage(key, value):
-    """Saves data to browser localStorage via JS injection."""
-    js = f"""
-    <script>
-        window.parent.localStorage.setItem('{key}', {json.dumps(value)});
-    </script>
-    """
-    components.html(js, height=0)
-
-def load_from_localstorage_widget(key):
-    """Returns a Streamlit text_area trick to read localStorage.
-       The user pastes the JSON back if needed, OR we auto-load via JS."""
-    pass  # See full approach below
 
 # ============================================================
 # SSL SETUP
@@ -101,7 +88,7 @@ MR = 3
 RDL = 8
 
 # ============================================================
-# MOCK INTERVIEW DOMAINS — 100+ organised in categories
+# MOCK INTERVIEW DOMAINS — 100+ in categories
 # ============================================================
 DOMAIN_GROUPS = {
     "General": ["General"],
@@ -166,8 +153,16 @@ DOMAIN_GROUPS = {
     ],
 }
 
+EXP_LEVELS = [
+    "🎓 Student / Fresher (0 yrs)",
+    "👶 Junior (0-2 yrs)",
+    "👨‍💻 Mid-level (2-5 yrs)",
+    "🧑‍🔧 Senior (5-10 yrs)",
+    "👑 Lead / Principal (10+ yrs)",
+]
+
 # ============================================================
-# REGION DATA (14 regions — unchanged from working version)
+# REGION DATA (14 regions)
 # ============================================================
 RD_ = {}
 RD_['🇬🇧 United Kingdom'] = dict(code='UK', term='CV', pages='2 pages A4', photo='NO photo - never include photo or DOB', pn=False, pi='Name, phone, email, LinkedIn (NO photo, NO DOB, NO nationality)', sec='Personal Profile, Key Skills, Work Experience, Education, Additional', sty='Achievement-focused with measurable results, UK English', sp='Personal Profile (3-4 lines) at top is ESSENTIAL.', ats='ATS-critical.', av='Photos, DOB, nationality, references', cp=(0, 51, 102))
@@ -187,41 +182,28 @@ RD_['🇪🇺 EU (Europass)'] = dict(code='EU', term='Europass CV', pages='2-3 p
 RL = list(RD_.keys())
 
 # ============================================================
-# STRIP EMOJIS / SPECIAL UNICODE FOR PDF/WORD SAFETY (Issue #1)
+# STRIP EMOJIS / SPECIAL UNICODE FOR PDF/WORD SAFETY
 # ============================================================
 def strip_emojis(text):
-    """Remove emojis, flags, box-drawing & special Unicode that show as
-    black boxes in standard PDF/Word fonts (especially on mobile)."""
     if not text:
         return ""
-    # Emoticons, pictographs, transport & supplemental symbols
     text = re.sub(r'[\U0001F000-\U0001FFFF]', '', text)
-    # Regional indicator symbols (country flags)
     text = re.sub(r'[\U0001F1E6-\U0001F1FF]', '', text)
-    # Box drawing, block elements, geometric shapes, misc symbols, dingbats
     text = re.sub(r'[\u2500-\u27BF]', '', text)
-    # Misc symbols and arrows
     text = re.sub(r'[\u2B00-\u2BFF]', '', text)
-    # Miscellaneous Technical
     text = re.sub(r'[\u2300-\u23FF]', '', text)
-    # Variation selectors
     text = re.sub(r'[\uFE00-\uFE0F]', '', text)
-    # Zero-width joiner
     text = text.replace('\u200d', '')
-    # Common box-drawing leftovers just in case
     for ch in '═━─━│┃┌┐└┘├┤┬┴┼╔╗╚╝╠╣╦╩╬':
         text = text.replace(ch, '')
-    # Tidy extra spaces a stripped emoji might leave
     text = re.sub(r'[ \t]+', ' ', text)
     text = re.sub(r'\n{3,}', '\n\n', text)
     return text.strip()
 
 # ============================================================
-# EXTRACT CANDIDATE NAME FOR FILENAMES (Issue #2)
+# EXTRACT CANDIDATE NAME FOR FILENAMES
 # ============================================================
 def extract_name(text):
-    """Find candidate's name from a CV / cover letter / feedback text.
-    Returns a filesystem-safe string like 'Vitthal_Kallappa'."""
     if not text:
         return "Candidate"
     SK = ["SUMMARY", "SKILL", "EXPERIENCE", "EDUCATION", "CERTIF", "PROFILE",
@@ -231,7 +213,6 @@ def extract_name(text):
           "SCORE", "ANALYSIS", "FEEDBACK", "QUESTION", "ANSWER", "STRENGTH",
           "WEAKNESS", "IDEAL", "TIPS", "INSIGHT", "ACTION", "RECOMMENDATION"]
     raw = [l for l in strip_emojis(text).split("\n") if l.strip()]
-    # Check first 10 + last 5 lines (cover letters often sign off with name)
     candidates = raw[:10] + raw[-5:]
     for line in candidates:
         c = re.sub(r"#+\s*", "", line).strip()
@@ -249,7 +230,6 @@ def extract_name(text):
             continue
         if len(c) < 2 or len(c) > 60:
             continue
-        # Looks like a Latin-alphabet name
         if not re.match(r"^[A-Za-z][A-Za-z\s\.\-']{1,}$", c):
             continue
         safe = re.sub(r"[^A-Za-z0-9_\-]+", "_", c).strip("_")
@@ -258,7 +238,7 @@ def extract_name(text):
     return "Candidate"
 
 # ============================================================
-# NETWORK / AI CALLS (unchanged logic)
+# NETWORK / AI CALLS (per-call temperature)
 # ============================================================
 def _post(url, data, headers=None, to=120):
     b = json.dumps(data).encode()
@@ -273,9 +253,10 @@ def _post(url, data, headers=None, to=120):
     except Exception as e:
         return 0, str(e)
 
-def _gem(pr, key, model, to=120):
+def _gem(pr, key, model, to=120, temperature=0.7):
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
-    pl = {"contents": [{"parts": [{"text": pr}]}], "generationConfig": {"temperature": 0.7, "maxOutputTokens": 8192}}
+    pl = {"contents": [{"parts": [{"text": pr}]}],
+          "generationConfig": {"temperature": temperature, "maxOutputTokens": 8192}}
     if HAS_REQ:
         try:
             r = rq.post(url, json=pl, timeout=to, headers={"Content-Type": "application/json"})
@@ -295,9 +276,10 @@ def _gem(pr, key, model, to=120):
     elif sc == 404: return False, f"MODEL_NOT_FOUND|{model}"
     else: return False, f"[Error {sc}] {bd[:200]}"
 
-def _openai(pr, key, model, to=120):
+def _openai(pr, key, model, to=120, temperature=0.7):
     url = "https://api.openai.com/v1/chat/completions"
-    pl = {"model": model, "messages": [{"role": "user", "content": pr}], "temperature": 0.7, "max_tokens": 4096}
+    pl = {"model": model, "messages": [{"role": "user", "content": pr}],
+          "temperature": temperature, "max_tokens": 4096}
     hdrs = {"Content-Type": "application/json", "Authorization": f"Bearer {key}"}
     if HAS_REQ:
         try:
@@ -313,20 +295,20 @@ def _openai(pr, key, model, to=120):
     elif sc == 401: return False, "Invalid OpenAI key."
     else: return False, f"[Error {sc}] {bd[:200]}"
 
-def ai_call(pr, key, prov="gemini", model="gemini-2.5-flash"):
+def ai_call(pr, key, prov="gemini", model="gemini-2.5-flash", temperature=0.7):
     try:
         if prov == "openai":
-            ok, t = _openai(pr, key, model)
+            ok, t = _openai(pr, key, model, temperature=temperature)
             return t
         for a in range(1, MR + 1):
-            ok, t = _gem(pr, key, model)
+            ok, t = _gem(pr, key, model, temperature=temperature)
             if ok: return t
             if "RATE_LIMITED" not in t and "MODEL_NOT_FOUND" not in t: return t
             if "MODEL_NOT_FOUND" in t: break
             if a < MR: time.sleep(RDL)
         for fb in FB_:
             if fb == model: continue
-            ok, t = _gem(pr, key, fb)
+            ok, t = _gem(pr, key, fb, temperature=temperature)
             if ok: return f"[Used:{fb}]\n\n{t}"
             if "RATE_LIMITED" not in t: return t
             time.sleep(2)
@@ -353,11 +335,11 @@ def read_file(uploaded):
     return ""
 
 # ============================================================
-# WORD EXPORT — strips emojis BEFORE rendering (Issue #1)
+# WORD EXPORT
 # ============================================================
 def make_docx(text, region):
     if not HAS_DOCX: return None
-    text = strip_emojis(text)  # << critical safety strip
+    text = strip_emojis(text)
     ri = RD_.get(region, {})
     cp = ri.get("cp", (0, 51, 102))
     has_photo = ri.get("pn", False)
@@ -422,7 +404,7 @@ def make_docx(text, region):
             bt = cfc.lstrip("-* ").strip()
             p = doc.add_paragraph()
             p.paragraph_format.left_indent = Cm(0.8)
-            p.add_run("• ").font.size = Pt(10)  # safe bullet (U+2022)
+            p.add_run("• ").font.size = Pt(10)
             r = p.add_run(re.sub(r"\*\*(.+?)\*\*", r"\1", bt))
             r.font.size = Pt(10)
         else:
@@ -454,11 +436,11 @@ def make_docx(text, region):
     return buf.getvalue()
 
 # ============================================================
-# PDF EXPORT — strips emojis BEFORE rendering (Issue #1)
+# PDF EXPORT
 # ============================================================
 def make_pdf(text, region):
     if not HAS_RL: return None
-    text = strip_emojis(text)  # << critical safety strip
+    text = strip_emojis(text)
     ri = RD_.get(region, {})
     cp = ri.get("cp", (0, 51, 102))
     has_photo = ri.get("pn", False)
@@ -518,7 +500,7 @@ def make_pdf(text, region):
             story.append(Paragraph(safe.upper(), ss["CVHead"]))
         elif c.startswith(("-", "*")):
             stripped = safe.lstrip("-* ")
-            story.append(Paragraph("• " + stripped, ss["CVBullet"]))  # safe bullet
+            story.append(Paragraph("• " + stripped, ss["CVBullet"]))
         else:
             story.append(Paragraph(re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", safe), ss["CVBody"]))
     if ri.get("code") == "IT":
@@ -537,7 +519,7 @@ def make_pdf(text, region):
     return buf.getvalue()
 
 # ============================================================
-# AI PROMPTS (unchanged)
+# AI PROMPTS
 # ============================================================
 NO_PRE = "RULES: 1) NO FABRICATION 2) Missing=[Not provided] 3) EXPERIENCE=sum jobs(exclude gaps) 4) Only stated numbers 5) Only stated skills 6) Name first, no preamble 7) ACTUAL years 8) Enhance wording only 9) Strictly follow region format"
 
@@ -584,7 +566,8 @@ def p_int(jd):
     return ("Interview coach.\nGenerate 15-20 questions from JD.\nTECHNICAL(10) + BEHAVIOURAL(5) + SITUATIONAL(5)" +
             "\nFor EACH: question | why asked | answer framework (STAR) | key points\nBasic to advanced.\n---JD---\n" + jd)
 
-def p_mock_jd(jd, n=15, exp_level="Mid (2-5 yrs)", avoid_list=""):
+# --- Mock interview prompts: experience-aware + anti-repeat ---
+def p_mock_jd(jd, n=15, exp_level="Mid-level (2-5 yrs)", avoid_list=""):
     nonce = uuid.uuid4().hex[:8]
     seed = random.randint(1000, 9999)
     avoid_txt = ("\n\nIMPORTANT — DO NOT REPEAT any of these previously asked questions "
@@ -602,8 +585,7 @@ def p_mock_jd(jd, n=15, exp_level="Mid (2-5 yrs)", avoid_list=""):
             "Format:\nQ1: [question]\nQ2: [question]\n...Only questions, no preamble." +
             "\n---JD---\n" + jd + avoid_txt)
 
-
-def p_mock_dom(dom, n=15, exp_level="Mid (2-5 yrs)", avoid_list=""):
+def p_mock_dom(dom, n=15, exp_level="Mid-level (2-5 yrs)", avoid_list=""):
     nonce = uuid.uuid4().hex[:8]
     seed = random.randint(1000, 9999)
     avoid_txt = ("\n\nIMPORTANT — DO NOT REPEAT any of these previously asked questions "
@@ -622,8 +604,7 @@ def p_mock_dom(dom, n=15, exp_level="Mid (2-5 yrs)", avoid_list=""):
             "Format:\nQ1: [question]\nQ2: [question]\n...Only questions, no preamble."
             + avoid_txt)
 
-
-def p_mock_eval(q, a, exp_level="Mid (2-5 yrs)"):
+def p_mock_eval(q, a, exp_level="Mid-level (2-5 yrs)"):
     return ("Interview coach. Evaluate this answer for a " + exp_level + " candidate.\n"
             "Adjust expectations to that level (be encouraging for Students, demanding for Senior/Lead).\n"
             "Question: " + q + "\nAnswer: " + a +
@@ -669,7 +650,7 @@ Year:
 """
 
 # ============================================================
-# STREAMLIT CONFIG + CSS (incl. mobile sidebar fix - Issue #6)
+# STREAMLIT CONFIG + CSS
 # ============================================================
 st.set_page_config(page_title="AI CV Builder", page_icon="📄",
                    layout="wide", initial_sidebar_state="expanded")
@@ -697,7 +678,7 @@ st.markdown("""
     .onboard p { color: #E8F5E9; font-size: 16px; line-height: 1.9; margin: 0; }
     .onboard a { color: #FFEB3B; font-weight: bold; text-decoration: underline; }
 
-    /* Issue #6 — keep sidebar close (<<) arrow visible while scrolling on mobile */
+    /* Keep sidebar close (<<) arrow visible while scrolling on mobile */
     section[data-testid="stSidebar"] button[kind="header"] {
         position: fixed !important;
         top: 10px !important;
@@ -716,7 +697,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ============================================================
-# MOBILE: auto-close sidebar after a tab is picked (Issue 3b)
+# MOBILE: auto-close sidebar after a tab is picked
 # ============================================================
 components.html("""
 <script>
@@ -747,14 +728,11 @@ components.html("""
 """, height=0)
 
 # ============================================================
-# NAVIGATION STATE (used by both sidebar radio and home cards)
+# NAVIGATION STATE
 # ============================================================
-
 PAGES = ["🏠 Home", "📝 Generate CV", "🔍 CV vs JD", "📊 CV Analysis",
          "📑 Multi-JD Compare", "🎤 Interview Prep", "🎙️ Mock Interview",
          "🧑‍💼 Coaching", "📚 My Library", "⚙️ Settings"]
-
-
 
 if "page" not in st.session_state:
     st.session_state.page = "🏠 Home"
@@ -783,7 +761,7 @@ with st.sidebar:
     if prov == "gemini":
         st.markdown("🔗 [Get FREE Gemini key](https://aistudio.google.com/apikey)")
     else:
-        st.markdown("🔗 [Get OpenAI key](https://platform.openai.com/api-keys)")
+        st.markdown("🔗 https://platform.openai.com/api-keys")
 
     st.markdown("---")
     st.markdown("**🌍 Target Region** ⭐")
@@ -796,15 +774,14 @@ with st.sidebar:
 # ============================================================
 # HELPERS
 # ============================================================
-def call_ai(prompt):
+def call_ai(prompt, temperature=0.7):
     if not api_key:
         st.error("⚠️ Please enter your API key in the sidebar.")
         return None
     with st.spinner("🤖 AI is thinking..."):
-        return ai_call(prompt, api_key, prov, model_id)
+        return ai_call(prompt, api_key, prov, model_id, temperature=temperature)
 
 def download_buttons(text, region, suffix="Document", name_override=None):
-    """3 download buttons (txt/docx/pdf) with auto candidate-name filenames (Issue #2)."""
     if not text: return
     name = name_override or extract_name(text)
     base_name = f"{name}_{suffix}"
@@ -841,7 +818,7 @@ def region_note(stored_region):
                     unsafe_allow_html=True)
 
 # ============================================================
-# PAGE: HOME (Issues #3 onboarding + #4 clickable cards)
+# PAGE: HOME
 # ============================================================
 if page == "🏠 Home":
     st.markdown(
@@ -850,7 +827,6 @@ if page == "🏠 Home":
         'Anti-hallucination: AI only uses YOUR data.</p></div>',
         unsafe_allow_html=True)
 
-    # ---- Onboarding banner (Issue #3) — only when no API key ----
     if not api_key:
         st.markdown("""
         <div class="onboard">
@@ -865,22 +841,17 @@ if page == "🏠 Home":
         </div>
         """, unsafe_allow_html=True)
 
-    # ---- 8 clickable cards in 2x4 grid (Issue #4) ----
-    
-
-cards = [
-    ("📝 Generate CV",     "Create a region-formatted CV from any JD.",         "card-green",  "📝 Generate CV"),
-    ("🔍 CV vs JD",        "Compare CV vs JD. Keywords, gaps, cover letter.",   "card-yellow", "🔍 CV vs JD"),
-    ("📊 CV Analysis",     "AI scores ATS compliance. Improve & export.",       "card-blue",   "📊 CV Analysis"),
-    ("📑 Multi-JD Compare","Compare your CV against multiple JDs at once.",     "card-purple", "📑 Multi-JD Compare"),
-    ("🎤 Interview Prep",  "15-20 questions + STAR frameworks from any JD.",    "card-green",  "🎤 Interview Prep"),
-    ("🎙️ Mock Interview", "Practice with AI across 100+ domains.",              "card-yellow", "🎙️ Mock Interview"),
-    ("🧑‍💼 Coaching",     "Career advice on 10+ life and career topics.",       "card-blue",   "🧑‍💼 Coaching"),
-    ("📚 My Library",      "Save question sets & feedback (PIN-protected).",    "card-green",  "📚 My Library"),
-    ("⚙️ Settings",        "Providers, regions, mobile tips, library status.",  "card-purple", "⚙️ Settings"),
-]
-
-
+    cards = [
+        ("📝 Generate CV",     "Create a region-formatted CV from any JD.",         "card-green",  "📝 Generate CV"),
+        ("🔍 CV vs JD",        "Compare CV vs JD. Keywords, gaps, cover letter.",   "card-yellow", "🔍 CV vs JD"),
+        ("📊 CV Analysis",     "AI scores ATS compliance. Improve & export.",       "card-blue",   "📊 CV Analysis"),
+        ("📑 Multi-JD Compare","Compare your CV against multiple JDs at once.",     "card-purple", "📑 Multi-JD Compare"),
+        ("🎤 Interview Prep",  "15-20 questions + STAR frameworks from any JD.",    "card-green",  "🎤 Interview Prep"),
+        ("🎙️ Mock Interview", "Practice with AI across 100+ domains.",              "card-yellow", "🎙️ Mock Interview"),
+        ("🧑‍💼 Coaching",     "Career advice on 10+ life and career topics.",       "card-blue",   "🧑‍💼 Coaching"),
+        ("📚 My Library",      "Save question sets & feedback. Export as JSON.",    "card-green",  "📚 My Library"),
+        ("⚙️ Settings",        "Providers, regions, mobile tips, library status.",  "card-purple", "⚙️ Settings"),
+    ]
     cols = st.columns(2, gap="medium")
     for i, (title, desc, css_class, target) in enumerate(cards):
         with cols[i % 2]:
@@ -955,7 +926,6 @@ elif page == "🔍 CV vs JD":
         st.markdown("### 📊 Comparison Result")
         st.text_area("Result", st.session_state["cmp_result"], height=400,
                      key="cmp_out", label_visibility="collapsed")
-        # name pulled from the underlying CV so the comparison file has user's name
         cv_name = extract_name(st.session_state.get("cmp_cv", ""))
         download_buttons(st.session_state["cmp_result"], region,
                          "JD_Comparison", name_override=cv_name)
@@ -1049,7 +1019,6 @@ elif page == "📊 CV Analysis":
                              st.session_state.get("ana_region", region),
                              "Improved_CV")
 
-
 # ============================================================
 # PAGE: MULTI-JD COMPARE
 # ============================================================
@@ -1111,20 +1080,11 @@ elif page == "🎤 Interview Prep":
                          "Interview_Questions", name_override="Candidate")
 
 # ============================================================
-# PAGE: MOCK INTERVIEW (Issue #5 — 100+ domains, 2-step picker)
+# PAGE: MOCK INTERVIEW (anti-repeat + experience level + open library)
 # ============================================================
-
 elif page == "🎙️ Mock Interview":
     st.title("🎙️ Mock Interview")
     st.caption("AI generates questions, you answer, AI evaluates with STAR + score.")
-
-    EXP_LEVELS = [
-        "🎓 Student / Fresher (0 yrs)",
-        "👶 Junior (0-2 yrs)",
-        "👨‍💻 Mid-level (2-5 yrs)",
-        "🧑‍🔧 Senior (5-10 yrs)",
-        "👑 Lead / Principal (10+ yrs)",
-    ]
 
     with st.container(border=True):
         st.markdown("### 📋 Question Source")
@@ -1153,13 +1113,12 @@ elif page == "🎙️ Mock Interview":
         n_q = st.radio("Number of questions", ["10", "15", "20"], index=1,
                        horizontal=True, key="mock_n")
 
-    # ---- Track selection signature; auto-invalidate stale questions ----
+    # Track selection signature; invalidate stale questions
     sig = f"{source}|{category}|{mock_domain}|{exp_level}|{n_q}|{mock_jd[:100]}"
     if st.session_state.get("mock_sig") and st.session_state["mock_sig"] != sig and \
        "mock_questions" in st.session_state:
         st.warning("⚠️ You changed the settings (domain / level / source). "
                    "Click **Generate Questions** again to refresh — old questions hidden.")
-        # hide stale questions but keep them in case user wants to revert
         st.session_state["mock_questions_stale"] = st.session_state.pop("mock_questions")
 
     col_g1, col_g2 = st.columns([3, 1])
@@ -1167,21 +1126,21 @@ elif page == "🎙️ Mock Interview":
         gen_clicked = st.button("🎯 Generate Questions", type="primary", use_container_width=True)
     with col_g2:
         regen_clicked = st.button("🔄 Regenerate (different)", use_container_width=True,
-                                  help="Force-generate a brand new set, avoiding any previous questions")
+                                  help="Force a brand new set, avoiding previous questions")
 
     if gen_clicked or regen_clicked:
-        # Build avoid list from previous questions to push AI away from repeats
         avoid_list = ""
         if regen_clicked:
             prev = st.session_state.get("mock_questions", "") or \
                    st.session_state.get("mock_questions_stale", "")
-            avoid_list = prev[:2000]  # cap size
+            avoid_list = prev[:2000]
 
         if "Job Description" in source:
             if not mock_jd.strip():
                 st.warning("Please paste a JD.")
             else:
-                result = call_ai(p_mock_jd(mock_jd, int(n_q), exp_level, avoid_list))
+                result = call_ai(p_mock_jd(mock_jd, int(n_q), exp_level, avoid_list),
+                                 temperature=0.95)
                 if result:
                     st.session_state["mock_questions"] = result
                     st.session_state["mock_sig"] = sig
@@ -1191,7 +1150,8 @@ elif page == "🎙️ Mock Interview":
                         "ts": datetime.now().strftime("%Y-%m-%d %H:%M"),
                     }
         else:
-            result = call_ai(p_mock_dom(mock_domain, int(n_q), exp_level, avoid_list))
+            result = call_ai(p_mock_dom(mock_domain, int(n_q), exp_level, avoid_list),
+                             temperature=0.95)
             if result:
                 st.session_state["mock_questions"] = result
                 st.session_state["mock_sig"] = sig
@@ -1210,8 +1170,7 @@ elif page == "🎙️ Mock Interview":
         st.text_area("Questions", st.session_state["mock_questions"], height=350,
                      key="mock_q_out", label_visibility="collapsed")
 
-       
-# ---- Save to My Library (open to all users) ----
+        # Save questions to My Library (open to all)
         if st.button("💾 Save this set to My Library", use_container_width=True,
                      key="lib_save_q"):
             lib = st.session_state.setdefault("library", [])
@@ -1244,7 +1203,7 @@ elif page == "🎙️ Mock Interview":
             download_buttons(st.session_state["mock_feedback"], region,
                              "Mock_Feedback", name_override="Candidate")
 
-            # ---- Save feedback to Library (open to all users) ----
+            # Save feedback to My Library (open to all)
             if st.button("💾 Save this feedback to My Library", use_container_width=True,
                          key="lib_save_fb"):
                 lib = st.session_state.setdefault("library", [])
@@ -1282,8 +1241,8 @@ elif page == "🧑‍💼 Coaching":
         download_buttons(st.session_state["coach_result"], region,
                          "Career_Advice", name_override="Candidate")
 
-
- PAGE: MY LIBRARY (open to all users — saved in their session)
+# ============================================================
+# PAGE: MY LIBRARY (open to all users)
 # ============================================================
 elif page == "📚 My Library":
     st.title("📚 My Library")
@@ -1293,13 +1252,9 @@ elif page == "📚 My Library":
             "Before closing the app, click **⬇️ Export Library** to download a backup file. "
             "Next time, click **⬆️ Import** to restore your saved items.")
 
-    # ---- Initialize library ----
     lib = st.session_state.setdefault("library", [])
-
-    # ---- Header stats ----
     st.success(f"📚 Your library currently has **{len(lib)}** saved item(s).")
 
-    # ---- Action buttons ----
     col1, col2 = st.columns(2)
     with col1:
         if lib:
@@ -1315,7 +1270,6 @@ elif page == "📚 My Library":
             st.session_state["library"] = []
             st.rerun()
 
-    # ---- Import from previous export ----
     st.markdown("**⬆️ Import previously exported library (restore from backup):**")
     up = st.file_uploader("Upload library JSON", type=["json"], key="lib_import")
     if up is not None:
@@ -1332,7 +1286,6 @@ elif page == "📚 My Library":
 
     st.markdown("---")
 
-    # ---- Show saved items ----
     if not lib:
         st.info("📭 Library is empty. Go to **🎙️ Mock Interview**, generate questions or get feedback, "
                 "then click **💾 Save to My Library**.")
@@ -1356,6 +1309,7 @@ elif page == "📚 My Library":
                     if st.button("🗑️ Delete", use_container_width=True, key=f"lib_del_{real_idx}"):
                         lib.pop(real_idx)
                         st.rerun()
+
 # ============================================================
 # PAGE: SETTINGS
 # ============================================================
@@ -1374,14 +1328,12 @@ elif page == "⚙️ Settings":
         st.markdown("- **Italy:** GDPR privacy clause")
         st.markdown("- **France / EU:** CEFR language levels")
         st.markdown("- **UAE / Gulf:** Nationality + visa status mandatory")
-        st.markdown("Change region in sidebar anytime and regenerate to update format.")
     with st.container(border=True):
         st.markdown("### 💾 Three Download Formats")
         st.markdown("- **💾 Save (.txt):** Plain text")
-        st.markdown("- **📄 Word (.docx):** Formatted with region-specific styling, photo placeholder if needed")
+        st.markdown("- **📄 Word (.docx):** Region-specific styling, photo placeholder if needed")
         st.markdown("- **📑 PDF (.pdf):** Professional PDF, photo box for relevant regions")
-        st.markdown("Files are auto-named using the candidate's name "
-                    "(e.g. *Vitthal_Kallappa_CV.pdf*).")
+        st.markdown("Files are auto-named using the candidate's name (e.g. *Vitthal_Kallappa_CV.pdf*).")
     with st.container(border=True):
         st.markdown("### 🎙️ Mock Interview Coverage")
         st.markdown(f"**{sum(len(v) for v in DOMAIN_GROUPS.values())}** "
@@ -1390,16 +1342,21 @@ elif page == "⚙️ Settings":
                     "(PUC PCMB/PCMC/Commerce/Arts, BCA, BBA, B.A/B.Com/B.Sc, MBA, M.Sc, M.A, M.Com), "
                     "Law, Agriculture, Arts & Social Sciences, Creative & Media, "
                     "Government Exams (UPSC/Banking/Defence/Police), and Skilled Trades.")
+        st.markdown("AI tailors questions by **experience level**: Student/Fresher, Junior, "
+                    "Mid-level, Senior, Lead/Principal.")
+    with st.container(border=True):
+        st.markdown("### 📚 My Library")
+        st.markdown("Save mock interview questions & feedback during your session. "
+                    "**Always export to JSON before closing** the app — items reset when you leave.")
     with st.container(border=True):
         st.markdown("### 📱 Use on Phone")
         st.markdown("**iPhone (Safari):** Share → Add to Home Screen")
         st.markdown("**Android (Chrome):** Menu → Add to Home Screen")
-        st.markdown("Tip: the sidebar close **«** arrow is now pinned at the top — "
-                    "you can close the menu without scrolling back up.")
+        st.markdown("Tip: the sidebar close **«** arrow is pinned at the top, and the menu "
+                    "auto-closes after you pick a tab on mobile.")
     docx_status = "OK" if HAS_DOCX else "Missing"
     rl_status   = "OK" if HAS_RL   else "Missing"
     pdf_status  = "OK" if HAS_PDF  else "Missing"
     req_status  = "OK" if HAS_REQ  else "Missing"
     st.caption(f"SSL: {SSL_M} | python-docx: {docx_status} | reportlab: {rl_status} "
                f"| pypdf: {pdf_status} | requests: {req_status}")
-
