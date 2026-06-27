@@ -2,8 +2,9 @@
 #!/usr/bin/env python3
 """AI CV Builder - Streamlit Web App
 Region-aware CV (14 regions), Word/PDF export, clickable home cards,
-100+ mock interview domains, experience-level tailoring, anti-repeat AI,
-mobile-safe sidebar, emoji-stripped exports, open My Library."""
+130+ mock interview domains, experience-level tailoring, anti-repeat AI
+with persistent history, mobile-safe sidebar, emoji-stripped exports,
+Gemini + OpenAI + Claude providers, open My Library."""
 import streamlit as st
 import streamlit.components.v1 as components
 import json, re, time, io, ssl, random, uuid
@@ -69,7 +70,7 @@ try:
 except: pass
 
 # ============================================================
-# MODELS
+# MODELS — Gemini + OpenAI + Claude
 # ============================================================
 GEMINI_MODELS = [
     ("gemini-2.5-flash", "2.5 Flash (FREE)"),
@@ -83,12 +84,23 @@ OPENAI_MODELS = [
     ("gpt-4-turbo", "GPT-4 Turbo"),
     ("gpt-3.5-turbo", "GPT-3.5 Turbo"),
 ]
+CLAUDE_MODELS = [
+    ("claude-opus-4-20250514", "Claude Opus 4 (Best)"),
+    ("claude-sonnet-4-20250514", "Claude Sonnet 4"),
+    ("claude-3-5-sonnet-20241022", "Claude 3.5 Sonnet"),
+    ("claude-3-5-haiku-20241022", "Claude 3.5 Haiku (Fast)"),
+]
 FB_ = [m[0] for m in GEMINI_MODELS]
 MR = 3
 RDL = 8
 
 # ============================================================
-# MOCK INTERVIEW DOMAINS — 100+ in categories
+# MOCK INTERVIEW DOMAINS — 130+ now (Issue #5)
+# Audited every category; added Computer Science Eng, Information
+# Science Eng, IT, Biomedical, Robotics, Mining, Petroleum, Marine,
+# Textile, Metallurgy, AYUSH (Ayurveda/Homeopathy/Unani), Nutrition,
+# Animation/VFX/Game Design, Diploma/ITI/B.Tech/M.Tech, SSC, Railway,
+# State PSC, Insurance, Retail, Hair Stylist, Tailoring, Chef, etc.
 # ============================================================
 DOMAIN_GROUPS = {
     "General": ["General"],
@@ -96,60 +108,99 @@ DOMAIN_GROUPS = {
         "AI / Machine Learning", "Data Science / Analytics", "Cyber Security",
         "Cloud / DevOps", "Software Engineering", "Web Development",
         "Mobile Development", "Database / SQL", "Networking",
+        "Blockchain / Web3", "AR / VR", "Embedded Systems",
     ],
     "Management & Business": [
         "Project Management", "Agile / Scrum", "Product Management",
-        "Business Analyst", "Operations Management",
+        "Business Analyst", "Operations Management", "Strategy Consulting",
     ],
     "Finance & Sales": [
         "Finance / Banking", "Investment / Trading", "Accounting / CA",
         "Sales / Business Dev", "Marketing / Digital", "HR / Recruitment",
-        "Supply Chain / Logistics",
+        "Supply Chain / Logistics", "Insurance", "Wealth Management",
     ],
     "Engineering": [
-        "Mechanical Engineering", "Civil Engineering", "Electrical Engineering",
-        "Electronics & Communication", "Chemical Engineering", "Aerospace Engineering",
-        "Automobile Engineering", "Industrial Engineering", "Architecture",
+        "Computer Science Engineering (CSE)",
+        "Information Science Engineering (ISE)",
+        "Information Technology (IT)",
+        "Electronics & Communication (ECE)",
+        "Electrical & Electronics (EEE)",
+        "Mechanical Engineering",
+        "Civil Engineering",
+        "Chemical Engineering",
+        "Aerospace Engineering",
+        "Automobile Engineering",
+        "Industrial Engineering",
+        "Biomedical Engineering",
+        "Robotics & Mechatronics",
+        "Mining Engineering",
+        "Petroleum Engineering",
+        "Marine Engineering",
+        "Textile Engineering",
+        "Metallurgy & Materials",
+        "Biotechnology / Genetic Eng",
+        "Architecture",
     ],
     "Medical & Healthcare": [
         "MBBS / Medicine", "BDS / Dentistry", "BPT / Physiotherapy",
-        "Nursing (B.Sc)", "Pharma-B / Pharmacy", "Pharma-D", "Veterinary",
-        "Public Health", "Medical Lab Technology", "Radiology", "Optometry",
+        "Nursing (B.Sc)", "Pharma-B / Pharmacy", "Pharma-D",
+        "Veterinary", "Public Health", "Medical Lab Technology",
+        "Radiology", "Optometry",
+        "AYUSH - BAMS (Ayurveda)", "AYUSH - BHMS (Homeopathy)",
+        "AYUSH - BUMS (Unani)", "Yoga & Naturopathy",
+        "Nutrition & Dietetics", "Occupational Therapy",
     ],
     "Education & Teaching": [
-        "Teaching / School", "Higher Education / Lecturer", "Special Education",
-        "Education Administration", "Tutoring",
+        "Teaching / School", "Higher Education / Lecturer",
+        "Special Education", "Education Administration", "Tutoring",
+        "B.Ed / D.Ed", "Early Childhood / Montessori",
     ],
     "Indian Education Streams": [
         "PUC PCMB", "PUC PCMC", "PUC Commerce", "PUC Arts",
+        "Diploma / Polytechnic", "ITI",
         "BCA", "BBA / BBM", "B.A", "B.Com", "B.Sc",
-        "MBA", "M.Sc", "M.A", "M.Com",
+        "B.Tech / B.E", "MBA", "M.Sc", "M.A", "M.Com",
+        "M.Tech / M.E", "Ph.D / Research",
     ],
     "Law & Legal": [
-        "Law / Legal", "Corporate Law", "Criminal Law", "Civil Law",
-        "IP Law", "Tax Law",
+        "Law / Legal (General)", "Corporate Law", "Criminal Law",
+        "Civil Law", "IP Law", "Tax Law", "Constitutional Law",
+        "Cyber Law",
     ],
     "Agriculture & Environment": [
         "Agriculture / Agronomy", "Horticulture", "Forestry",
-        "Environmental Science", "Fisheries", "Dairy Technology", "Food Technology",
+        "Environmental Science", "Fisheries", "Dairy Technology",
+        "Food Technology", "Sericulture",
     ],
     "Arts & Social Sciences": [
-        "Geography", "History", "Psychology", "Sociology", "Political Science",
-        "Economics", "Anthropology", "Philosophy", "Literature",
+        "Geography", "History", "Psychology", "Sociology",
+        "Political Science", "Economics", "Anthropology",
+        "Philosophy", "Literature", "Linguistics",
+        "Social Work (MSW)",
     ],
     "Creative & Media": [
-        "Journalism", "Graphic Design", "UI/UX Design", "Photography",
-        "Film Production", "Music", "Fashion Design", "Interior Design",
+        "Journalism", "Graphic Design", "UI/UX Design",
+        "Photography", "Film Production", "Music",
+        "Fashion Design", "Interior Design",
+        "Animation", "VFX", "Game Design",
+        "Content Creation / YouTube", "Copywriting",
     ],
     "Services & Hospitality": [
-        "Hotel Management", "Travel & Tourism", "Aviation / Air Hostess",
-        "Event Management", "Real Estate",
+        "Hotel Management", "Travel & Tourism",
+        "Aviation / Air Hostess", "Event Management",
+        "Real Estate", "Retail Management", "Customer Service",
     ],
     "Government & Civil Services": [
-        "UPSC / Civil Services", "Banking Exams", "Defence", "Police",
+        "UPSC / Civil Services", "State PSC",
+        "Banking Exams (IBPS/SBI)", "SSC (CGL/CHSL)",
+        "Railway Exams (RRB)", "Defence (NDA/CDS)",
+        "Police / Constable",
     ],
     "Trade & Skilled": [
-        "Plumbing / Electrical Trade", "Auto Mechanic", "Carpentry", "Welding",
+        "Plumbing / Electrical Trade", "Auto Mechanic",
+        "Carpentry", "Welding", "Hair Stylist / Beautician",
+        "Tailoring / Stitching", "Painting / Construction",
+        "Chef / Cooking", "Driving / Heavy Vehicle",
     ],
 }
 
@@ -162,7 +213,7 @@ EXP_LEVELS = [
 ]
 
 # ============================================================
-# REGION DATA (14 regions)
+# REGION DATA (14 regions — unchanged)
 # ============================================================
 RD_ = {}
 RD_['🇬🇧 United Kingdom'] = dict(code='UK', term='CV', pages='2 pages A4', photo='NO photo - never include photo or DOB', pn=False, pi='Name, phone, email, LinkedIn (NO photo, NO DOB, NO nationality)', sec='Personal Profile, Key Skills, Work Experience, Education, Additional', sty='Achievement-focused with measurable results, UK English', sp='Personal Profile (3-4 lines) at top is ESSENTIAL.', ats='ATS-critical.', av='Photos, DOB, nationality, references', cp=(0, 51, 102))
@@ -238,7 +289,7 @@ def extract_name(text):
     return "Candidate"
 
 # ============================================================
-# NETWORK / AI CALLS (per-call temperature)
+# NETWORK / AI CALLS — Gemini + OpenAI + Claude (Bonus)
 # ============================================================
 def _post(url, data, headers=None, to=120):
     b = json.dumps(data).encode()
@@ -256,7 +307,9 @@ def _post(url, data, headers=None, to=120):
 def _gem(pr, key, model, to=120, temperature=0.7):
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
     pl = {"contents": [{"parts": [{"text": pr}]}],
-          "generationConfig": {"temperature": temperature, "maxOutputTokens": 8192}}
+          "generationConfig": {"temperature": temperature,
+                               "maxOutputTokens": 8192,
+                               "topP": 0.95}}
     if HAS_REQ:
         try:
             r = rq.post(url, json=pl, timeout=to, headers={"Content-Type": "application/json"})
@@ -295,11 +348,41 @@ def _openai(pr, key, model, to=120, temperature=0.7):
     elif sc == 401: return False, "Invalid OpenAI key."
     else: return False, f"[Error {sc}] {bd[:200]}"
 
+def _claude(pr, key, model, to=120, temperature=0.7):
+    """Anthropic Claude API call."""
+    url = "https://api.anthropic.com/v1/messages"
+    pl = {"model": model, "max_tokens": 4096,
+          "temperature": min(temperature, 1.0),
+          "messages": [{"role": "user", "content": pr}]}
+    hdrs = {"Content-Type": "application/json",
+            "x-api-key": key,
+            "anthropic-version": "2023-06-01"}
+    if HAS_REQ:
+        try:
+            r = rq.post(url, json=pl, timeout=to, headers=hdrs)
+            sc, bd = r.status_code, r.text
+        except:
+            sc, bd = _post(url, pl, headers=hdrs, to=to)
+    else:
+        sc, bd = _post(url, pl, headers=hdrs, to=to)
+    if sc == 200:
+        res = json.loads(bd) if isinstance(bd, str) else bd
+        try:
+            return True, res["content"][0]["text"]
+        except:
+            return False, f"[Parse Error] {str(res)[:300]}"
+    elif sc == 401: return False, "Invalid Claude/Anthropic key."
+    else: return False, f"[Error {sc}] {bd[:200]}"
+
 def ai_call(pr, key, prov="gemini", model="gemini-2.5-flash", temperature=0.7):
     try:
         if prov == "openai":
             ok, t = _openai(pr, key, model, temperature=temperature)
             return t
+        if prov == "claude":
+            ok, t = _claude(pr, key, model, temperature=temperature)
+            return t
+        # Gemini with auto-fallback
         for a in range(1, MR + 1):
             ok, t = _gem(pr, key, model, temperature=temperature)
             if ok: return t
@@ -566,43 +649,73 @@ def p_int(jd):
     return ("Interview coach.\nGenerate 15-20 questions from JD.\nTECHNICAL(10) + BEHAVIOURAL(5) + SITUATIONAL(5)" +
             "\nFor EACH: question | why asked | answer framework (STAR) | key points\nBasic to advanced.\n---JD---\n" + jd)
 
-# --- Mock interview prompts: experience-aware + anti-repeat ---
-def p_mock_jd(jd, n=15, exp_level="Mid-level (2-5 yrs)", avoid_list=""):
-    nonce = uuid.uuid4().hex[:8]
-    seed = random.randint(1000, 9999)
-    avoid_txt = ("\n\nIMPORTANT — DO NOT REPEAT any of these previously asked questions "
-                 "(generate completely different ones):\n" + avoid_list) if avoid_list else ""
-    return ("You are a creative interview coach.\n"
-            "EXPERIENCE LEVEL OF CANDIDATE: " + exp_level + "\n"
-            "Tailor difficulty + scenarios for this level. For Students/Freshers focus on fundamentals, "
-            "academic projects, internships, theory + small practical scenarios. For Senior/Lead focus "
-            "on architecture, leadership, trade-offs, conflict, mentoring.\n"
-            "Generate " + str(n) + " FRESH, UNIQUE, VARIED questions from JD.\n"
-            "60% Technical + 25% Behavioural + 15% Situational\n"
-            "Vary topics, angles, scenarios. Avoid generic textbook questions. "
-            "Use modern industry context, recent tools, real-world situations.\n"
-            "Session nonce (ignore — only ensures variety): " + nonce + "-" + str(seed) + "\n"
-            "Format:\nQ1: [question]\nQ2: [question]\n...Only questions, no preamble." +
-            "\n---JD---\n" + jd + avoid_txt)
+# ============================================================
+# ANTI-REPEAT MOCK PROMPTS — MUCH STRONGER (Issue #1)
+# Uses persistent per-domain history + multiple sub-topic seeds +
+# explicit topic-rotation instructions
+# ============================================================
+SUBTOPIC_SEEDS = [
+    "technical fundamentals & theory",
+    "real-world troubleshooting & debugging scenarios",
+    "system design & architecture trade-offs",
+    "recent industry trends, tools and best practices",
+    "team collaboration & cross-functional communication",
+    "edge cases, failures, and lessons learned",
+    "performance optimisation and scalability",
+    "security, compliance and ethics",
+    "mentoring, leadership and conflict resolution",
+    "career growth, learning curves and pivots",
+]
 
-def p_mock_dom(dom, n=15, exp_level="Mid-level (2-5 yrs)", avoid_list=""):
-    nonce = uuid.uuid4().hex[:8]
-    seed = random.randint(1000, 9999)
-    avoid_txt = ("\n\nIMPORTANT — DO NOT REPEAT any of these previously asked questions "
-                 "(generate completely different ones):\n" + avoid_list) if avoid_list else ""
-    return ("You are a creative interview coach for **" + dom + "**.\n"
+def _build_avoid_block(history_questions):
+    """Build a strong, explicit avoid-list block from previous questions."""
+    if not history_questions:
+        return ""
+    # Last 30 questions, trimmed for token safety
+    recent = history_questions[-30:]
+    listing = "\n".join(f"- {q[:200]}" for q in recent)
+    return ("\n\n=== CRITICAL ANTI-REPEAT RULE ===\n"
+            "The following questions have ALREADY been asked in previous rounds for this same domain.\n"
+            "You MUST NOT repeat them, paraphrase them, or ask any question covering the same concept.\n"
+            "Generate a COMPLETELY DIFFERENT set covering NEW sub-topics, NEW angles, NEW scenarios.\n"
+            "Previously asked (DO NOT REPEAT):\n" + listing + "\n=== END ANTI-REPEAT RULE ===\n")
+
+def p_mock_jd(jd, n=15, exp_level="Mid-level (2-5 yrs)", history_questions=None):
+    nonce = uuid.uuid4().hex[:12]
+    seed = random.randint(10000, 99999)
+    focus = random.sample(SUBTOPIC_SEEDS, k=min(4, len(SUBTOPIC_SEEDS)))
+    avoid_block = _build_avoid_block(history_questions or [])
+    return ("You are a CREATIVE and VARIED interview coach.\n"
             "EXPERIENCE LEVEL OF CANDIDATE: " + exp_level + "\n"
             "Tailor difficulty + scenarios for this level. For Students/Freshers focus on fundamentals, "
-            "academic projects, basics, theory + small practical scenarios. For Senior/Lead focus on "
-            "architecture, leadership, trade-offs, conflict, mentoring.\n"
-            "Generate " + str(n) + " FRESH, UNIQUE, VARIED questions SPECIFICALLY for " + dom + ".\n"
+            "academic projects, internships. For Senior/Lead focus on architecture, leadership, trade-offs.\n\n"
+            "ROTATE FOCUS — this round must emphasise these specific sub-topics (mix them across questions):\n"
+            "- " + "\n- ".join(focus) + "\n\n"
+            "Generate " + str(n) + " FRESH, UNIQUE, NON-OVERLAPPING questions from JD.\n"
+            "60% Technical + 25% Behavioural + 15% Situational.\n"
+            "Vary phrasing, scenario, depth. Use modern industry context.\n"
+            "Session randomness token (internal — ignore but use to ensure variety): " + nonce + "-" + str(seed) + "\n\n"
+            "OUTPUT FORMAT (strict):\nQ1: [question]\nQ2: [question]\n...Only the questions. No preamble, no commentary."
+            + avoid_block + "\n---JD---\n" + jd)
+
+def p_mock_dom(dom, n=15, exp_level="Mid-level (2-5 yrs)", history_questions=None):
+    nonce = uuid.uuid4().hex[:12]
+    seed = random.randint(10000, 99999)
+    focus = random.sample(SUBTOPIC_SEEDS, k=min(4, len(SUBTOPIC_SEEDS)))
+    avoid_block = _build_avoid_block(history_questions or [])
+    return ("You are a CREATIVE and VARIED interview coach for **" + dom + "**.\n"
+            "EXPERIENCE LEVEL OF CANDIDATE: " + exp_level + "\n"
+            "Tailor difficulty for this level. For Students/Freshers focus on fundamentals, theory, college projects. "
+            "For Senior/Lead focus on architecture, leadership, trade-offs, mentoring.\n\n"
+            "ROTATE FOCUS — this round must emphasise these specific sub-topics of " + dom + " (mix them across questions):\n"
+            "- " + "\n- ".join(focus) + "\n\n"
+            "Generate " + str(n) + " FRESH, UNIQUE, NON-OVERLAPPING questions SPECIFICALLY for " + dom + ".\n"
             "Stay tightly focused on " + dom + " — do NOT drift into adjacent fields.\n"
-            "60% Technical + 25% Behavioural + 15% Situational\n"
-            "Vary topics, angles, scenarios. Avoid generic textbook questions. "
-            "Use modern industry context, recent tools, real-world situations.\n"
-            "Session nonce (ignore — only ensures variety): " + nonce + "-" + str(seed) + "\n"
-            "Format:\nQ1: [question]\nQ2: [question]\n...Only questions, no preamble."
-            + avoid_txt)
+            "60% Technical + 25% Behavioural + 15% Situational.\n"
+            "Vary phrasing, scenario, depth. Use modern industry context, recent tools, real-world situations.\n"
+            "Session randomness token (internal — ignore but use to ensure variety): " + nonce + "-" + str(seed) + "\n\n"
+            "OUTPUT FORMAT (strict):\nQ1: [question]\nQ2: [question]\n...Only the questions. No preamble, no commentary."
+            + avoid_block)
 
 def p_mock_eval(q, a, exp_level="Mid-level (2-5 yrs)"):
     return ("Interview coach. Evaluate this answer for a " + exp_level + " candidate.\n"
@@ -650,6 +763,19 @@ Year:
 """
 
 # ============================================================
+# HELPER — extract Q-only lines from AI output for history tracking
+# ============================================================
+def _parse_questions(text):
+    if not text: return []
+    out = []
+    for line in text.split("\n"):
+        line = line.strip()
+        m = re.match(r"^Q\d+[:.\)]\s*(.+)$", line, flags=re.I)
+        if m:
+            out.append(m.group(1).strip())
+    return out
+
+# ============================================================
 # STREAMLIT CONFIG + CSS
 # ============================================================
 st.set_page_config(page_title="AI CV Builder", page_icon="📄",
@@ -657,94 +783,148 @@ st.set_page_config(page_title="AI CV Builder", page_icon="📄",
 
 st.markdown("""
 <style>
-    .card-green  { background:#d4edda; padding:20px; border-radius:8px; border:1px solid #c3e6cb; margin-bottom:8px; min-height:120px; }
-    .card-yellow { background:#fff3cd; padding:20px; border-radius:8px; border:1px solid #ffeaa7; margin-bottom:8px; min-height:120px; }
-    .card-blue   { background:#d1ecf1; padding:20px; border-radius:8px; border:1px solid #bee5eb; margin-bottom:8px; min-height:120px; }
-    .card-purple { background:#e8daef; padding:20px; border-radius:8px; border:1px solid #d7bce8; margin-bottom:8px; min-height:120px; }
-    .card-green h3, .card-yellow h3, .card-blue h3, .card-purple h3 { margin-top:0; color:#1a1a2e; }
-    .card-green p, .card-yellow p, .card-blue p, .card-purple p { color:#555; margin:0; }
+    /* Cards now have visual cue they are clickable */
+    .home-card {
+        padding: 24px; border-radius: 10px; margin-bottom: 12px;
+        min-height: 110px; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s;
+        border: 2px solid transparent;
+    }
+    .home-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.15); }
+    .home-card h3 { margin-top: 0; color: #1a1a2e; }
+    .home-card p  { color: #444; margin: 0; }
+    .home-card .tap-hint { font-size: 12px; color: #1976d2; margin-top: 8px; font-weight: 600; }
+    .bg-green  { background:#d4edda; border-color:#c3e6cb; }
+    .bg-yellow { background:#fff3cd; border-color:#ffeaa7; }
+    .bg-blue   { background:#d1ecf1; border-color:#bee5eb; }
+    .bg-purple { background:#e8daef; border-color:#d7bce8; }
+
     .hero { background:linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color:white; padding:30px; border-radius:8px; margin-bottom:20px; }
     .hero h1 { color:white; margin:0 0 10px 0; }
     .hero p { color:#b0c4de; margin:0; }
     .stats-bar { background:#e8eaf6; padding:12px; border-radius:8px; margin-top:12px; text-align:center; }
     .region-warning { background:#fff3cd; padding:10px; border-radius:6px; border-left:4px solid #ff9800; margin-bottom:10px; font-size:14px; }
     div[data-testid="stDownloadButton"] button { font-weight: 600; }
+
     .onboard {
         background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
         color: white; padding: 24px; border-radius: 12px;
         margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
     .onboard h2 { color: white; margin: 0 0 12px 0; font-size: 22px; }
-    .onboard p { color: #E8F5E9; font-size: 16px; line-height: 1.9; margin: 0; }
-    .onboard a { color: #FFEB3B; font-weight: bold; text-decoration: underline; }
+    .onboard p  { color: #E8F5E9; font-size: 16px; line-height: 1.9; margin: 0; }
+    .onboard a  { color: #FFEB3B; font-weight: bold; text-decoration: underline; }
 
-    /* Keep sidebar close (<<) arrow visible while scrolling on mobile */
+    .nokey-banner {
+        background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);
+        color: white; padding: 18px; border-radius: 10px; margin-bottom: 16px;
+    }
+    .nokey-banner h3 { color: white; margin: 0 0 8px 0; }
+    .nokey-banner p  { color: #FFF3E0; margin: 0; line-height: 1.7; }
+
+    /* Sidebar arrow visible on scroll */
     section[data-testid="stSidebar"] button[kind="header"] {
-        position: fixed !important;
-        top: 10px !important;
-        z-index: 999999 !important;
+        position: fixed !important; top: 10px !important; z-index: 999999 !important;
     }
     [data-testid="collapsedControl"] {
-        position: fixed !important;
-        top: 10px !important;
-        left: 10px !important;
-        z-index: 999999 !important;
-        background: rgba(255,255,255,0.95) !important;
-        border-radius: 6px !important;
-        padding: 4px !important;
+        position: fixed !important; top: 10px !important; left: 10px !important;
+        z-index: 999999 !important; background: rgba(255,255,255,0.95) !important;
+        border-radius: 6px !important; padding: 4px !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # ============================================================
-# MOBILE: auto-close sidebar after a tab is picked
+# MOBILE: aggressive auto-close sidebar after tab pick (Issue #3)
+# Polls every 500ms; on radio change, retries close up to 12 times
 # ============================================================
 components.html("""
 <script>
 (function() {
+    const W = window.parent;
+    const D = W.document;
+    function isMobile() { return W.innerWidth < 992; }
+    function findCloseBtn() {
+        return D.querySelector('section[data-testid="stSidebar"] button[kind="header"]')
+            || D.querySelector('[data-testid="stSidebarCollapseButton"]')
+            || D.querySelector('[data-testid="collapsedControl"]');
+    }
+    function isSidebarOpen() {
+        const sb = D.querySelector('section[data-testid="stSidebar"]');
+        if (!sb) return false;
+        const rect = sb.getBoundingClientRect();
+        return rect.width > 50;
+    }
+    function tryClose() {
+        if (!isMobile()) return;
+        let tries = 0;
+        const iv = setInterval(() => {
+            if (!isSidebarOpen() || tries > 12) { clearInterval(iv); return; }
+            const btn = findCloseBtn();
+            if (btn) btn.click();
+            tries++;
+        }, 80);
+    }
     function attach() {
-        const doc = window.parent.document;
-        const radios = doc.querySelectorAll('section[data-testid="stSidebar"] input[type="radio"]');
+        const radios = D.querySelectorAll('section[data-testid="stSidebar"] input[type="radio"]');
         radios.forEach(r => {
             if (r._autoCloseAttached) return;
             r._autoCloseAttached = true;
-            r.addEventListener('change', () => {
-                if (window.parent.innerWidth < 992) {
-                    setTimeout(() => {
-                        const closeBtn = doc.querySelector(
-                            'section[data-testid="stSidebar"] button[kind="header"]'
-                        ) || doc.querySelector('[data-testid="stSidebarCollapseButton"]');
-                        if (closeBtn) closeBtn.click();
-                    }, 250);
-                }
-            });
+            r.addEventListener('change', () => setTimeout(tryClose, 150));
+            r.addEventListener('click', () => setTimeout(tryClose, 200));
+        });
+        // Also listen to label clicks (mobile taps often hit label, not input)
+        const labels = D.querySelectorAll('section[data-testid="stSidebar"] label');
+        labels.forEach(l => {
+            if (l._autoCloseAttached) return;
+            l._autoCloseAttached = true;
+            l.addEventListener('click', () => setTimeout(tryClose, 200));
         });
     }
     attach();
+    setInterval(attach, 1000);
     const obs = new MutationObserver(attach);
-    obs.observe(window.parent.document.body, {childList: true, subtree: true});
+    obs.observe(D.body, {childList: true, subtree: true});
 })();
 </script>
 """, height=0)
 
 # ============================================================
-# NAVIGATION STATE
+# NAVIGATION STATE — supports query-param navigation (Issue #2)
 # ============================================================
 PAGES = ["🏠 Home", "📝 Generate CV", "🔍 CV vs JD", "📊 CV Analysis",
          "📑 Multi-JD Compare", "🎤 Interview Prep", "🎙️ Mock Interview",
          "🧑‍💼 Coaching", "📚 My Library", "⚙️ Settings"]
 
+# Slug map for query-param navigation from clickable cards
+PAGE_SLUGS = {
+    "home": "🏠 Home", "generate": "📝 Generate CV", "compare": "🔍 CV vs JD",
+    "analysis": "📊 CV Analysis", "multi": "📑 Multi-JD Compare",
+    "prep": "🎤 Interview Prep", "mock": "🎙️ Mock Interview",
+    "coach": "🧑‍💼 Coaching", "library": "📚 My Library", "settings": "⚙️ Settings",
+}
+
+# Initialise page state
 if "page" not in st.session_state:
     st.session_state.page = "🏠 Home"
 
+# Handle direct-link navigation from clickable cards (?nav=mock etc.)
+qp = st.query_params
+if "nav" in qp:
+    target_slug = qp.get("nav")
+    if target_slug in PAGE_SLUGS:
+        st.session_state.page = PAGE_SLUGS[target_slug]
+    st.query_params.clear()
+    st.rerun()
+
 # ============================================================
-# SIDEBAR
+# SIDEBAR — now with Claude provider (Bonus)
 # ============================================================
 with st.sidebar:
     st.markdown("# 📄 AI CV Builder")
     st.markdown("---")
     idx = PAGES.index(st.session_state.page) if st.session_state.page in PAGES else 0
-    selected = st.radio("**Navigation**", PAGES, index=idx, label_visibility="collapsed")
+    selected = st.radio("**Navigation**", PAGES, index=idx, label_visibility="collapsed",
+                        key="nav_radio")
     if selected != st.session_state.page:
         st.session_state.page = selected
         st.rerun()
@@ -752,16 +932,28 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown("**🤖 AI Provider**")
-    provider = st.radio("Provider", ["Gemini (FREE)", "OpenAI (Paid)"], label_visibility="collapsed")
-    prov = "openai" if "OpenAI" in provider else "gemini"
-    models = OPENAI_MODELS if prov == "openai" else GEMINI_MODELS
-    model_display = st.selectbox("Model", [m[0] + " (" + m[1] + ")" for m in models])
+    provider = st.radio("Provider",
+                        ["Gemini (FREE)", "OpenAI (Paid)", "Claude (Paid)"],
+                        label_visibility="collapsed", key="prov_radio")
+    if "OpenAI" in provider:
+        prov = "openai"; models = OPENAI_MODELS
+    elif "Claude" in provider:
+        prov = "claude"; models = CLAUDE_MODELS
+    else:
+        prov = "gemini"; models = GEMINI_MODELS
+
+    model_display = st.selectbox("Model", [m[0] + " (" + m[1] + ")" for m in models],
+                                 key="model_sel")
     model_id = model_display.split(" (")[0]
-    api_key = st.text_input("🔑 API Key", type="password", placeholder="Paste your API key")
+    api_key = st.text_input("🔑 API Key", type="password",
+                            placeholder="Paste your API key", key="api_key_in")
+
     if prov == "gemini":
         st.markdown("🔗 [Get FREE Gemini key](https://aistudio.google.com/apikey)")
+    elif prov == "openai":
+        st.markdown("🔗 [Get OpenAI key](https://platform.openai.com/api-keys)")
     else:
-        st.markdown("🔗 https://platform.openai.com/api-keys")
+        st.markdown("🔗 [Get Claude key](https://console.anthropic.com/settings/keys)")
 
     st.markdown("---")
     st.markdown("**🌍 Target Region** ⭐")
@@ -775,8 +967,22 @@ with st.sidebar:
 # HELPERS
 # ============================================================
 def call_ai(prompt, temperature=0.7):
+    """Run AI call with helpful no-API-key reminder (Issue #4)."""
     if not api_key:
-        st.error("⚠️ Please enter your API key in the sidebar.")
+        st.markdown("""
+        <div class="nokey-banner">
+            <h3>🔑 API key missing</h3>
+            <p>You haven't entered your API key in the left sidebar yet.<br>
+            <b>👉 What to do:</b><br>
+            1. Open the sidebar (tap the <b>»</b> arrow top-left on phone).<br>
+            2. Choose a provider — <b>Gemini (FREE)</b> is recommended for first-timers.<br>
+            3. Paste your API key in the 🔑 box.<br>
+            4. Don't have one? <a href="?nav=home" target="_self" style="color:#FFEB3B">
+            Go to the Home page</a> for step-by-step setup instructions, or use this direct link:
+            <a href="https://aistudio.google.com/apikey" target="_blank" style="color:#FFEB3B">
+            aistudio.google.com/apikey</a> (free, 30 seconds).</p>
+        </div>
+        """, unsafe_allow_html=True)
         return None
     with st.spinner("🤖 AI is thinking..."):
         return ai_call(prompt, api_key, prov, model_id, temperature=temperature)
@@ -818,12 +1024,12 @@ def region_note(stored_region):
                     unsafe_allow_html=True)
 
 # ============================================================
-# PAGE: HOME
+# PAGE: HOME (clickable cards via HTML link, no extra button - Issue #2)
 # ============================================================
 if page == "🏠 Home":
     st.markdown(
         '<div class="hero"><h1>📄 AI CV Builder</h1>'
-        '<p>Gemini (FREE) + OpenAI • Region-aware • PDF/Word Export • 100+ Mock Interview Domains<br>'
+        '<p>Gemini (FREE) + OpenAI + Claude • Region-aware • PDF/Word Export • 130+ Mock Interview Domains<br>'
         'Anti-hallucination: AI only uses YOUR data.</p></div>',
         unsafe_allow_html=True)
 
@@ -841,29 +1047,33 @@ if page == "🏠 Home":
         </div>
         """, unsafe_allow_html=True)
 
+    # Each card is now a clickable LINK (anchor) — tap anywhere on it
+    # uses ?nav=<slug> which the router at the top picks up
     cards = [
-        ("📝 Generate CV",     "Create a region-formatted CV from any JD.",         "card-green",  "📝 Generate CV"),
-        ("🔍 CV vs JD",        "Compare CV vs JD. Keywords, gaps, cover letter.",   "card-yellow", "🔍 CV vs JD"),
-        ("📊 CV Analysis",     "AI scores ATS compliance. Improve & export.",       "card-blue",   "📊 CV Analysis"),
-        ("📑 Multi-JD Compare","Compare your CV against multiple JDs at once.",     "card-purple", "📑 Multi-JD Compare"),
-        ("🎤 Interview Prep",  "15-20 questions + STAR frameworks from any JD.",    "card-green",  "🎤 Interview Prep"),
-        ("🎙️ Mock Interview", "Practice with AI across 100+ domains.",              "card-yellow", "🎙️ Mock Interview"),
-        ("🧑‍💼 Coaching",     "Career advice on 10+ life and career topics.",       "card-blue",   "🧑‍💼 Coaching"),
-        ("📚 My Library",      "Save question sets & feedback. Export as JSON.",    "card-green",  "📚 My Library"),
-        ("⚙️ Settings",        "Providers, regions, mobile tips, library status.",  "card-purple", "⚙️ Settings"),
+        ("📝 Generate CV",     "Create a region-formatted CV from any JD.",         "bg-green",  "generate"),
+        ("🔍 CV vs JD",        "Compare CV vs JD. Keywords, gaps, cover letter.",   "bg-yellow", "compare"),
+        ("📊 CV Analysis",     "AI scores ATS compliance. Improve & export.",       "bg-blue",   "analysis"),
+        ("📑 Multi-JD Compare","Compare your CV against multiple JDs at once.",     "bg-purple", "multi"),
+        ("🎤 Interview Prep",  "15-20 questions + STAR frameworks from any JD.",    "bg-green",  "prep"),
+        ("🎙️ Mock Interview", "Practice with AI across 130+ domains.",              "bg-yellow", "mock"),
+        ("🧑‍💼 Coaching",     "Career advice on 10+ life and career topics.",       "bg-blue",   "coach"),
+        ("📚 My Library",      "Save question sets & feedback. Export as JSON.",    "bg-green",  "library"),
+        ("⚙️ Settings",        "Providers, regions, mobile tips, library status.",  "bg-purple", "settings"),
     ]
     cols = st.columns(2, gap="medium")
-    for i, (title, desc, css_class, target) in enumerate(cards):
+    for i, (title, desc, css_class, slug) in enumerate(cards):
         with cols[i % 2]:
-            st.markdown(f'<div class="{css_class}"><h3>{title}</h3><p>{desc}</p></div>',
-                        unsafe_allow_html=True)
-            if st.button(f"Open  →", key=f"card_{i}", use_container_width=True):
-                st.session_state.page = target
-                st.rerun()
+            st.markdown(
+                f'<a href="?nav={slug}" target="_self" style="text-decoration:none;color:inherit;">'
+                f'<div class="home-card {css_class}">'
+                f'<h3>{title}</h3><p>{desc}</p>'
+                f'<div class="tap-hint">👉 Tap to open</div>'
+                f'</div></a>',
+                unsafe_allow_html=True)
 
     st.markdown(
-        '<div class="stats-bar">🌍 <b>14 Regions</b> &nbsp;•&nbsp; 🤖 <b>Gemini + OpenAI</b> '
-        '&nbsp;•&nbsp; 📑 <b>PDF / Word Export</b> &nbsp;•&nbsp; 🎙️ <b>100+ Mock Domains</b> '
+        '<div class="stats-bar">🌍 <b>14 Regions</b> &nbsp;•&nbsp; 🤖 <b>Gemini + OpenAI + Claude</b> '
+        '&nbsp;•&nbsp; 📑 <b>PDF / Word Export</b> &nbsp;•&nbsp; 🎙️ <b>130+ Mock Domains</b> '
         '&nbsp;•&nbsp; 📱 <b>Mobile-friendly</b></div>', unsafe_allow_html=True)
     st.markdown("---")
     st.info("💡 **Currently set to:** " + region + " — your CV will be formatted for this region. Change in the sidebar anytime.")
@@ -1080,11 +1290,16 @@ elif page == "🎤 Interview Prep":
                          "Interview_Questions", name_override="Candidate")
 
 # ============================================================
-# PAGE: MOCK INTERVIEW (anti-repeat + experience level + open library)
+# PAGE: MOCK INTERVIEW — persistent per-domain history (Issue #1)
 # ============================================================
 elif page == "🎙️ Mock Interview":
     st.title("🎙️ Mock Interview")
-    st.caption("AI generates questions, you answer, AI evaluates with STAR + score.")
+    st.caption("AI generates fresh questions every time. Switch domain, level, or click Regenerate "
+               "and the AI is given an explicit anti-repeat list.")
+
+    # ---- Per-domain history of previously generated questions ----
+    if "mock_history" not in st.session_state:
+        st.session_state["mock_history"] = {}   # key -> list[str questions]
 
     with st.container(border=True):
         st.markdown("### 📋 Question Source")
@@ -1113,34 +1328,38 @@ elif page == "🎙️ Mock Interview":
         n_q = st.radio("Number of questions", ["10", "15", "20"], index=1,
                        horizontal=True, key="mock_n")
 
-    # Track selection signature; invalidate stale questions
+    # Build per-domain key for history tracking
+    history_key = (
+        f"JD::{exp_level}::{(mock_jd[:80] or 'na')}" if "Job Description" in source
+        else f"DOM::{category}::{mock_domain}::{exp_level}"
+    )
+
+    # Hide stale on settings change
     sig = f"{source}|{category}|{mock_domain}|{exp_level}|{n_q}|{mock_jd[:100]}"
     if st.session_state.get("mock_sig") and st.session_state["mock_sig"] != sig and \
        "mock_questions" in st.session_state:
-        st.warning("⚠️ You changed the settings (domain / level / source). "
-                   "Click **Generate Questions** again to refresh — old questions hidden.")
-        st.session_state["mock_questions_stale"] = st.session_state.pop("mock_questions")
+        st.warning("⚠️ Settings changed — old questions hidden. Click **Generate Questions** "
+                   "to refresh for the new selection.")
+        st.session_state.pop("mock_questions", None)
 
     col_g1, col_g2 = st.columns([3, 1])
     with col_g1:
         gen_clicked = st.button("🎯 Generate Questions", type="primary", use_container_width=True)
     with col_g2:
         regen_clicked = st.button("🔄 Regenerate (different)", use_container_width=True,
-                                  help="Force a brand new set, avoiding previous questions")
+                                  help="Force a brand new set; anti-repeat list grows with each click")
 
     if gen_clicked or regen_clicked:
-        avoid_list = ""
-        if regen_clicked:
-            prev = st.session_state.get("mock_questions", "") or \
-                   st.session_state.get("mock_questions_stale", "")
-            avoid_list = prev[:2000]
+        # Always pass history — even on first Generate — to push AI away from any cached patterns
+        history = st.session_state["mock_history"].get(history_key, [])
 
         if "Job Description" in source:
             if not mock_jd.strip():
                 st.warning("Please paste a JD.")
             else:
-                result = call_ai(p_mock_jd(mock_jd, int(n_q), exp_level, avoid_list),
-                                 temperature=0.95)
+                result = call_ai(
+                    p_mock_jd(mock_jd, int(n_q), exp_level, history_questions=history),
+                    temperature=1.0)
                 if result:
                     st.session_state["mock_questions"] = result
                     st.session_state["mock_sig"] = sig
@@ -1149,9 +1368,14 @@ elif page == "🎙️ Mock Interview":
                         "level": exp_level, "n": n_q,
                         "ts": datetime.now().strftime("%Y-%m-%d %H:%M"),
                     }
+                    # Append parsed questions to history for next round
+                    new_qs = _parse_questions(result)
+                    if new_qs:
+                        st.session_state["mock_history"].setdefault(history_key, []).extend(new_qs)
         else:
-            result = call_ai(p_mock_dom(mock_domain, int(n_q), exp_level, avoid_list),
-                             temperature=0.95)
+            result = call_ai(
+                p_mock_dom(mock_domain, int(n_q), exp_level, history_questions=history),
+                temperature=1.0)
             if result:
                 st.session_state["mock_questions"] = result
                 st.session_state["mock_sig"] = sig
@@ -1160,27 +1384,37 @@ elif page == "🎙️ Mock Interview":
                     "level": exp_level, "n": n_q,
                     "ts": datetime.now().strftime("%Y-%m-%d %H:%M"),
                 }
+                new_qs = _parse_questions(result)
+                if new_qs:
+                    st.session_state["mock_history"].setdefault(history_key, []).extend(new_qs)
 
     if "mock_questions" in st.session_state:
         meta = st.session_state.get("mock_meta", {})
+        hist_count = len(st.session_state["mock_history"].get(history_key, []))
         st.markdown(f"### 📋 Generated Questions "
                     f"<span style='font-size:14px;color:#888'>"
-                    f"({meta.get('domain','')} • {meta.get('level','')} • {meta.get('ts','')})</span>",
+                    f"({meta.get('domain','')} • {meta.get('level','')} • {meta.get('ts','')} "
+                    f"• history: {hist_count} Qs tracked)</span>",
                     unsafe_allow_html=True)
         st.text_area("Questions", st.session_state["mock_questions"], height=350,
                      key="mock_q_out", label_visibility="collapsed")
 
-        # Save questions to My Library (open to all)
-        if st.button("💾 Save this set to My Library", use_container_width=True,
-                     key="lib_save_q"):
-            lib = st.session_state.setdefault("library", [])
-            lib.append({
-                "type": "questions",
-                "meta": meta,
-                "content": st.session_state["mock_questions"],
-            })
-            st.success(f"✅ Saved! Library now has {len(lib)} item(s). "
-                       "Go to **📚 My Library** to view or export.")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("💾 Save this set to My Library", use_container_width=True,
+                         key="lib_save_q"):
+                lib = st.session_state.setdefault("library", [])
+                lib.append({
+                    "type": "questions",
+                    "meta": meta,
+                    "content": st.session_state["mock_questions"],
+                })
+                st.success(f"✅ Saved! Library has {len(lib)} item(s).")
+        with c2:
+            if st.button("🧹 Clear history for this domain", use_container_width=True,
+                         key="clear_hist", help="Reset anti-repeat tracking for this domain/level"):
+                st.session_state["mock_history"].pop(history_key, None)
+                st.success("✅ Anti-repeat history cleared for this selection.")
 
         st.markdown("---")
         st.markdown("### 📝 Practice & Evaluate")
@@ -1203,7 +1437,6 @@ elif page == "🎙️ Mock Interview":
             download_buttons(st.session_state["mock_feedback"], region,
                              "Mock_Feedback", name_override="Candidate")
 
-            # Save feedback to My Library (open to all)
             if st.button("💾 Save this feedback to My Library", use_container_width=True,
                          key="lib_save_fb"):
                 lib = st.session_state.setdefault("library", [])
@@ -1213,7 +1446,7 @@ elif page == "🎙️ Mock Interview":
                              "question": st.session_state.get("mock_feedback_q", "")},
                     "content": st.session_state["mock_feedback"],
                 })
-                st.success(f"✅ Saved! Library now has {len(lib)} item(s).")
+                st.success(f"✅ Saved! Library has {len(lib)} item(s).")
 
 # ============================================================
 # PAGE: COACHING
@@ -1242,7 +1475,7 @@ elif page == "🧑‍💼 Coaching":
                          "Career_Advice", name_override="Candidate")
 
 # ============================================================
-# PAGE: MY LIBRARY (open to all users)
+# PAGE: MY LIBRARY
 # ============================================================
 elif page == "📚 My Library":
     st.title("📚 My Library")
@@ -1319,6 +1552,7 @@ elif page == "⚙️ Settings":
         st.markdown("### 🤖 AI Providers")
         st.markdown("- **Gemini (FREE):** https://aistudio.google.com/apikey")
         st.markdown("- **OpenAI (Paid):** https://platform.openai.com/api-keys")
+        st.markdown("- **Claude / Anthropic (Paid):** https://console.anthropic.com/settings/keys")
     with st.container(border=True):
         st.markdown("### 🌍 Region-Aware CV Generation")
         st.markdown("CV format adapts based on selected region:")
@@ -1337,13 +1571,17 @@ elif page == "⚙️ Settings":
     with st.container(border=True):
         st.markdown("### 🎙️ Mock Interview Coverage")
         st.markdown(f"**{sum(len(v) for v in DOMAIN_GROUPS.values())}** "
-                    f"domains across **{len(DOMAIN_GROUPS)}** categories, "
-                    "including Technology, Engineering, Medical, Indian Education Streams "
-                    "(PUC PCMB/PCMC/Commerce/Arts, BCA, BBA, B.A/B.Com/B.Sc, MBA, M.Sc, M.A, M.Com), "
-                    "Law, Agriculture, Arts & Social Sciences, Creative & Media, "
-                    "Government Exams (UPSC/Banking/Defence/Police), and Skilled Trades.")
-        st.markdown("AI tailors questions by **experience level**: Student/Fresher, Junior, "
-                    "Mid-level, Senior, Lead/Principal.")
+                    f"domains across **{len(DOMAIN_GROUPS)}** categories.")
+        st.markdown("Engineering now includes **CSE, ISE, IT, ECE, EEE, Biomedical, Robotics, Mining, "
+                    "Petroleum, Marine, Textile, Metallurgy, Biotech, Architecture** and more.")
+        st.markdown("Medical includes **AYUSH (BAMS/BHMS/BUMS)**, Yoga, Nutrition, OT.")
+        st.markdown("Indian Education: **PUC, Diploma, ITI, BCA, BBA, B.A/B.Com/B.Sc, B.Tech, MBA, "
+                    "M.Sc/M.A/M.Com, M.Tech, Ph.D**.")
+        st.markdown("AI tailors questions by **experience level**: Student/Fresher, Junior, Mid, "
+                    "Senior, Lead/Principal.")
+        st.markdown("**Anti-repeat tracking:** Every generated question is remembered per "
+                    "domain+level and explicitly excluded from future rounds. "
+                    "Clear it any time with the 🧹 button on Mock Interview page.")
     with st.container(border=True):
         st.markdown("### 📚 My Library")
         st.markdown("Save mock interview questions & feedback during your session. "
@@ -1352,8 +1590,7 @@ elif page == "⚙️ Settings":
         st.markdown("### 📱 Use on Phone")
         st.markdown("**iPhone (Safari):** Share → Add to Home Screen")
         st.markdown("**Android (Chrome):** Menu → Add to Home Screen")
-        st.markdown("Tip: the sidebar close **«** arrow is pinned at the top, and the menu "
-                    "auto-closes after you pick a tab on mobile.")
+        st.markdown("Tip: tap any tab in the sidebar — it auto-closes on mobile.")
     docx_status = "OK" if HAS_DOCX else "Missing"
     rl_status   = "OK" if HAS_RL   else "Missing"
     pdf_status  = "OK" if HAS_PDF  else "Missing"
