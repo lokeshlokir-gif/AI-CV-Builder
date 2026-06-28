@@ -1440,67 +1440,120 @@ elif page == "🎙️ Mock Interview":
 
 
         # ============================================================
-        # 🎤 VOICE INPUT (Phase 1A) — Tap to speak your answer
+        # 🎤 VOICE INPUT (Phase 1A+1C) — Speak + AI polish
         # ============================================================
-        st.markdown("#### 🎤 Speak your answer (optional)")
+        st.markdown("#### 🎤 Speak your answer (multi-language)")
 
-        voice_col1, voice_col2 = st.columns([2, 1])
-        with voice_col1:
+        # Init session state for voice transcript
+        if "voice_transcript" not in st.session_state:
+            st.session_state["voice_transcript"] = ""
+
+        vcol1, vcol2 = st.columns([3, 2])
+        with vcol1:
             voice_lang = st.selectbox(
-                "Language",
+                "🌐 Language",
                 ["en-IN — English (India)",
                  "en-US — English (US)",
+                 "en-GB — English (UK)",
+                 "en-AU — English (Australia)",
                  "hi-IN — Hindi",
                  "kn-IN — Kannada",
                  "ta-IN — Tamil",
                  "te-IN — Telugu",
+                 "ml-IN — Malayalam",
                  "mr-IN — Marathi",
-                 "bn-IN — Bengali"],
+                 "bn-IN — Bengali",
+                 "gu-IN — Gujarati",
+                 "pa-IN — Punjabi",
+                 "ur-IN — Urdu",
+                 "or-IN — Odia",
+                 "as-IN — Assamese",
+                 "es-ES — Spanish",
+                 "fr-FR — French",
+                 "de-DE — German",
+                 "it-IT — Italian",
+                 "pt-BR — Portuguese (Brazil)",
+                 "ja-JP — Japanese",
+                 "ko-KR — Korean",
+                 "zh-CN — Chinese (Mandarin)",
+                 "ar-SA — Arabic",
+                 "ru-RU — Russian",
+                 "tr-TR — Turkish",
+                 "nl-NL — Dutch",
+                 "pl-PL — Polish",
+                 "vi-VN — Vietnamese",
+                 "th-TH — Thai",
+                 "id-ID — Indonesian"],
                 key="voice_lang_pick",
-                help="Pick the language you'll speak in. English (India) is most accurate even for code-mixed speech.")
-        with voice_col2:
+                help="Pick the language you'll speak in. English (India) is most accurate "
+                     "even for Hinglish/code-mixed speech.")
+        with vcol2:
             st.markdown("<div style='padding-top:28px'></div>", unsafe_allow_html=True)
             st.caption("💡 Use mobile data, not office Wi-Fi (firewalls block mic)")
 
         lang_code = voice_lang.split(" — ")[0]
 
-        voice_result = components.html(
+        components.html(
             f"""
-            <div style="font-family:system-ui,sans-serif;padding:12px;
+            <div style="font-family:system-ui,-apple-system,sans-serif;padding:14px;
                         background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);
-                        border-radius:10px;color:white;">
+                        border-radius:12px;color:white;">
                 <button id="vbtn" style="
-                    width:100%;padding:14px 20px;font-size:16px;font-weight:600;
-                    background:#4CAF50;color:white;border:none;border-radius:8px;
-                    cursor:pointer;box-shadow:0 4px 8px rgba(0,0,0,0.2);
+                    width:100%;padding:18px 20px;font-size:17px;font-weight:700;
+                    background:linear-gradient(135deg,#4CAF50 0%,#2E7D32 100%);
+                    color:white;border:none;border-radius:10px;
+                    cursor:pointer;box-shadow:0 4px 12px rgba(76,175,80,0.4);
                     transition:all 0.2s;">
                     🎤 Tap to Start Recording
                 </button>
-                <div id="vstat" style="margin-top:10px;font-size:14px;color:#b0c4de;
-                                      text-align:center;min-height:20px;">
-                    Tap the button and speak naturally
+                <div id="vstat" style="margin-top:12px;font-size:14px;color:#b0c4de;
+                                      text-align:center;min-height:22px;font-weight:500;">
+                    Tap above and speak naturally
                 </div>
-                <div id="vtxt" style="margin-top:10px;padding:10px;
-                                      background:rgba(255,255,255,0.1);border-radius:6px;
-                                      min-height:60px;font-size:15px;line-height:1.5;
-                                      white-space:pre-wrap;"></div>
-                <button id="vuse" style="
-                    display:none;width:100%;margin-top:10px;padding:12px;
-                    background:#FFEB3B;color:#1a1a2e;border:none;border-radius:8px;
-                    font-weight:700;cursor:pointer;font-size:15px;">
-                    ✅ Use This Transcript
-                </button>
+                <div style="margin-top:10px;display:flex;justify-content:space-between;
+                            font-size:12px;color:#9aa5b8;">
+                    <span id="vwc">📝 0 words</span>
+                    <span id="vdur">⏱️ 0:00</span>
+                </div>
+                <div id="vtxt" style="margin-top:10px;padding:12px;
+                                      background:rgba(255,255,255,0.08);
+                                      border:1px solid rgba(255,255,255,0.15);
+                                      border-radius:8px;
+                                      min-height:120px;max-height:200px;overflow-y:auto;
+                                      font-size:15px;line-height:1.6;
+                                      white-space:pre-wrap;color:#e8eaf6;"></div>
+                <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                    <button id="vcopy" style="
+                        padding:13px;background:#FFEB3B;color:#1a1a2e;
+                        border:none;border-radius:8px;font-weight:700;
+                        cursor:pointer;font-size:14px;display:none;">
+                        📋 Copy Transcript
+                    </button>
+                    <button id="vclear" style="
+                        padding:13px;background:#757575;color:white;
+                        border:none;border-radius:8px;font-weight:600;
+                        cursor:pointer;font-size:14px;display:none;">
+                        🗑️ Clear & Restart
+                    </button>
+                </div>
+                <div id="vfb" style="margin-top:10px;text-align:center;font-size:13px;
+                                      color:#90EE90;font-weight:600;min-height:18px;"></div>
             </div>
             <script>
             (function() {{
                 const btn = document.getElementById('vbtn');
                 const stat = document.getElementById('vstat');
                 const txt = document.getElementById('vtxt');
-                const useBtn = document.getElementById('vuse');
+                const copyBtn = document.getElementById('vcopy');
+                const clearBtn = document.getElementById('vclear');
+                const fb = document.getElementById('vfb');
+                const wcEl = document.getElementById('vwc');
+                const durEl = document.getElementById('vdur');
                 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
                 if (!SR) {{
                     btn.disabled = true;
                     btn.style.background = '#888';
+                    btn.style.cursor = 'not-allowed';
                     btn.textContent = '❌ Voice not supported in this browser';
                     stat.textContent = 'Try Chrome (Android) or Safari (iPhone)';
                     return;
@@ -1511,29 +1564,51 @@ elif page == "🎙️ Mock Interview":
                 rec.interimResults = true;
                 let finalText = '';
                 let recording = false;
+                let startTime = 0;
+                let timerInterval = null;
+                function updateStats() {{
+                    const words = finalText.trim().split(/\\s+/).filter(w => w.length > 0).length;
+                    wcEl.textContent = '📝 ' + words + ' words';
+                    if (recording && startTime) {{
+                        const sec = Math.floor((Date.now() - startTime) / 1000);
+                        const m = Math.floor(sec / 60);
+                        const s = sec % 60;
+                        durEl.textContent = '⏱️ ' + m + ':' + (s < 10 ? '0' : '') + s;
+                    }}
+                }}
                 btn.onclick = () => {{
                     if (!recording) {{
                         finalText = '';
                         txt.textContent = '';
-                        useBtn.style.display = 'none';
+                        copyBtn.style.display = 'none';
+                        clearBtn.style.display = 'none';
+                        fb.textContent = '';
                         try {{
                             rec.start();
                             recording = true;
+                            startTime = Date.now();
                             btn.textContent = '⏹️ Stop Recording';
-                            btn.style.background = '#F44336';
-                            stat.innerHTML = '<span style="color:#F44336">● Recording...</span> Speak now';
+                            btn.style.background = 'linear-gradient(135deg,#F44336 0%,#C62828 100%)';
+                            btn.style.boxShadow = '0 4px 12px rgba(244,67,54,0.5)';
+                            stat.innerHTML = '<span style="color:#F44336;font-size:18px">●</span> ' +
+                                             '<span style="color:#fff">Recording... speak now</span>';
+                            timerInterval = setInterval(updateStats, 500);
                         }} catch(e) {{
                             stat.textContent = '⚠️ ' + e.message;
                         }}
                     }} else {{
                         rec.stop();
                         recording = false;
+                        clearInterval(timerInterval);
                         btn.textContent = '🎤 Tap to Start Recording';
-                        btn.style.background = '#4CAF50';
-                        stat.textContent = 'Stopped. Review transcript below.';
+                        btn.style.background = 'linear-gradient(135deg,#4CAF50 0%,#2E7D32 100%)';
+                        btn.style.boxShadow = '0 4px 12px rgba(76,175,80,0.4)';
+                        stat.textContent = '✅ Recording stopped — copy your transcript below';
                         if (finalText.trim()) {{
-                            useBtn.style.display = 'block';
+                            copyBtn.style.display = 'block';
+                            clearBtn.style.display = 'block';
                         }}
+                        updateStats();
                     }}
                 }};
                 rec.onresult = (event) => {{
@@ -1544,38 +1619,99 @@ elif page == "🎙️ Mock Interview":
                         else interim += t;
                     }}
                     txt.textContent = finalText + interim;
+                    txt.scrollTop = txt.scrollHeight;
+                    updateStats();
                 }};
                 rec.onerror = (e) => {{
-                    stat.textContent = '⚠️ Error: ' + e.error + ' (allow microphone access)';
+                    stat.textContent = '⚠️ Error: ' + e.error + ' — allow mic in browser settings';
                     recording = false;
+                    clearInterval(timerInterval);
                     btn.textContent = '🎤 Tap to Start Recording';
-                    btn.style.background = '#4CAF50';
+                    btn.style.background = 'linear-gradient(135deg,#4CAF50 0%,#2E7D32 100%)';
                 }};
                 rec.onend = () => {{
                     if (recording) {{
                         try {{ rec.start(); }} catch(e) {{}}
                     }}
                 }};
-                useBtn.onclick = () => {{
-                    window.parent.postMessage({{
-                        type: 'streamlit:setComponentValue',
-                        value: finalText.trim()
-                    }}, '*');
-                    stat.innerHTML = '✅ Transcript captured! Paste it in the Answer box below.';
-                    useBtn.textContent = '📋 Copy Transcript';
-                    useBtn.onclick = () => {{
-                        navigator.clipboard.writeText(finalText.trim());
-                        useBtn.textContent = '✅ Copied! Now paste in Answer box';
-                    }};
+                copyBtn.onclick = async () => {{
+                    try {{
+                        await navigator.clipboard.writeText(finalText.trim());
+                        fb.textContent = '✅ Copied! Now scroll down & paste in "Your Answer" box';
+                        copyBtn.textContent = '✅ Copied!';
+                        setTimeout(() => {{
+                            copyBtn.textContent = '📋 Copy Transcript';
+                        }}, 2000);
+                    }} catch(e) {{
+                        const ta = document.createElement('textarea');
+                        ta.value = finalText.trim();
+                        document.body.appendChild(ta);
+                        ta.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(ta);
+                        fb.textContent = '✅ Copied! Now scroll down & paste in "Your Answer" box';
+                    }}
+                }};
+                clearBtn.onclick = () => {{
+                    finalText = '';
+                    txt.textContent = '';
+                    copyBtn.style.display = 'none';
+                    clearBtn.style.display = 'none';
+                    fb.textContent = '';
+                    stat.textContent = 'Tap above and speak naturally';
+                    updateStats();
                 }};
             }})();
             </script>
             """,
-            height=260,
+            height=560,
         )
 
-        st.caption("📋 After speaking, tap '✅ Use This Transcript' — then **copy and paste** "
-                   "the text into the Your Answer box below. (Streamlit doesn't allow direct fill, so quick copy-paste!)")
+        # ---- AI Polish (Phase 1C) — for Kannada/Hindi/mixed speech ----
+        st.markdown("##### ✨ AI Polish (cleans up rough transcripts into pro English)")
+        polish_col1, polish_col2 = st.columns([2, 1])
+        with polish_col1:
+            raw_voice_text = st.text_area(
+                "Paste rough transcript here (from voice recording above)",
+                height=100, key="raw_voice_in",
+                placeholder="Paste your voice transcript here, then click 'Polish with AI'..."
+            )
+        with polish_col2:
+            st.markdown("<div style='padding-top:28px'></div>", unsafe_allow_html=True)
+            polish_clicked = st.button("✨ Polish with AI", use_container_width=True,
+                                       key="polish_btn", type="primary")
+            st.caption("Cleans grammar, translates mixed-language to professional English")
+
+        if polish_clicked:
+            if not raw_voice_text.strip():
+                st.warning("Please paste your voice transcript first.")
+            else:
+                polish_prompt = (
+                    "You are a professional interview answer editor. "
+                    "The user has spoken an interview answer that may be in mixed languages "
+                    "(English + Hindi/Kannada/Tamil/Telugu etc.), with grammar mistakes, "
+                    "filler words (um, uh), and rough phrasing.\n\n"
+                    "Your job: Convert their rough speech into a polished, professional "
+                    "interview answer in clear English. Preserve their meaning, structure it "
+                    "with STAR (Situation, Task, Action, Result) if possible, remove fillers, "
+                    "fix grammar, and translate any non-English parts to English.\n\n"
+                    "Keep it concise (3-5 sentences max unless answer is genuinely long). "
+                    "Do NOT add information the user didn't say. Do NOT fabricate.\n\n"
+                    "---ROUGH TRANSCRIPT---\n" + raw_voice_text +
+                    "\n\n---POLISHED ANSWER (English, professional)---"
+                )
+                polished = call_ai(polish_prompt, temperature=0.4)
+                if polished:
+                    st.session_state["polished_voice"] = polished
+                    st.success("✅ Polished! Copy from below and paste in 'Your Answer' box.")
+
+        if "polished_voice" in st.session_state:
+            st.markdown("**✨ Polished version (copy this):**")
+            st.text_area("Polished", st.session_state["polished_voice"], height=150,
+                         key="polished_out", label_visibility="collapsed")
+            st.caption("👆 Long-press or triple-click to select all, then copy & paste in 'Your Answer' box below.")
+
+        st.markdown("---")
 
         
         mock_q = st.text_area("Question", height=80, key="mock_q_in")
