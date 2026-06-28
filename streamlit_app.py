@@ -1437,6 +1437,147 @@ elif page == "🎙️ Mock Interview":
 
         st.markdown("---")
         st.markdown("### 📝 Practice & Evaluate")
+
+
+        # ============================================================
+        # 🎤 VOICE INPUT (Phase 1A) — Tap to speak your answer
+        # ============================================================
+        st.markdown("#### 🎤 Speak your answer (optional)")
+
+        voice_col1, voice_col2 = st.columns([2, 1])
+        with voice_col1:
+            voice_lang = st.selectbox(
+                "Language",
+                ["en-IN — English (India)",
+                 "en-US — English (US)",
+                 "hi-IN — Hindi",
+                 "kn-IN — Kannada",
+                 "ta-IN — Tamil",
+                 "te-IN — Telugu",
+                 "mr-IN — Marathi",
+                 "bn-IN — Bengali"],
+                key="voice_lang_pick",
+                help="Pick the language you'll speak in. English (India) is most accurate even for code-mixed speech.")
+        with voice_col2:
+            st.markdown("<div style='padding-top:28px'></div>", unsafe_allow_html=True)
+            st.caption("💡 Use mobile data, not office Wi-Fi (firewalls block mic)")
+
+        lang_code = voice_lang.split(" — ")[0]
+
+        voice_result = components.html(
+            f"""
+            <div style="font-family:system-ui,sans-serif;padding:12px;
+                        background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);
+                        border-radius:10px;color:white;">
+                <button id="vbtn" style="
+                    width:100%;padding:14px 20px;font-size:16px;font-weight:600;
+                    background:#4CAF50;color:white;border:none;border-radius:8px;
+                    cursor:pointer;box-shadow:0 4px 8px rgba(0,0,0,0.2);
+                    transition:all 0.2s;">
+                    🎤 Tap to Start Recording
+                </button>
+                <div id="vstat" style="margin-top:10px;font-size:14px;color:#b0c4de;
+                                      text-align:center;min-height:20px;">
+                    Tap the button and speak naturally
+                </div>
+                <div id="vtxt" style="margin-top:10px;padding:10px;
+                                      background:rgba(255,255,255,0.1);border-radius:6px;
+                                      min-height:60px;font-size:15px;line-height:1.5;
+                                      white-space:pre-wrap;"></div>
+                <button id="vuse" style="
+                    display:none;width:100%;margin-top:10px;padding:12px;
+                    background:#FFEB3B;color:#1a1a2e;border:none;border-radius:8px;
+                    font-weight:700;cursor:pointer;font-size:15px;">
+                    ✅ Use This Transcript
+                </button>
+            </div>
+            <script>
+            (function() {{
+                const btn = document.getElementById('vbtn');
+                const stat = document.getElementById('vstat');
+                const txt = document.getElementById('vtxt');
+                const useBtn = document.getElementById('vuse');
+                const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!SR) {{
+                    btn.disabled = true;
+                    btn.style.background = '#888';
+                    btn.textContent = '❌ Voice not supported in this browser';
+                    stat.textContent = 'Try Chrome (Android) or Safari (iPhone)';
+                    return;
+                }}
+                const rec = new SR();
+                rec.lang = '{lang_code}';
+                rec.continuous = true;
+                rec.interimResults = true;
+                let finalText = '';
+                let recording = false;
+                btn.onclick = () => {{
+                    if (!recording) {{
+                        finalText = '';
+                        txt.textContent = '';
+                        useBtn.style.display = 'none';
+                        try {{
+                            rec.start();
+                            recording = true;
+                            btn.textContent = '⏹️ Stop Recording';
+                            btn.style.background = '#F44336';
+                            stat.innerHTML = '<span style="color:#F44336">● Recording...</span> Speak now';
+                        }} catch(e) {{
+                            stat.textContent = '⚠️ ' + e.message;
+                        }}
+                    }} else {{
+                        rec.stop();
+                        recording = false;
+                        btn.textContent = '🎤 Tap to Start Recording';
+                        btn.style.background = '#4CAF50';
+                        stat.textContent = 'Stopped. Review transcript below.';
+                        if (finalText.trim()) {{
+                            useBtn.style.display = 'block';
+                        }}
+                    }}
+                }};
+                rec.onresult = (event) => {{
+                    let interim = '';
+                    for (let i = event.resultIndex; i < event.results.length; i++) {{
+                        const t = event.results[i][0].transcript;
+                        if (event.results[i].isFinal) finalText += t + ' ';
+                        else interim += t;
+                    }}
+                    txt.textContent = finalText + interim;
+                }};
+                rec.onerror = (e) => {{
+                    stat.textContent = '⚠️ Error: ' + e.error + ' (allow microphone access)';
+                    recording = false;
+                    btn.textContent = '🎤 Tap to Start Recording';
+                    btn.style.background = '#4CAF50';
+                }};
+                rec.onend = () => {{
+                    if (recording) {{
+                        try {{ rec.start(); }} catch(e) {{}}
+                    }}
+                }};
+                useBtn.onclick = () => {{
+                    window.parent.postMessage({{
+                        type: 'streamlit:setComponentValue',
+                        value: finalText.trim()
+                    }}, '*');
+                    stat.innerHTML = '✅ Transcript captured! Paste it in the Answer box below.';
+                    useBtn.textContent = '📋 Copy Transcript';
+                    useBtn.onclick = () => {{
+                        navigator.clipboard.writeText(finalText.trim());
+                        useBtn.textContent = '✅ Copied! Now paste in Answer box';
+                    }};
+                }};
+            }})();
+            </script>
+            """,
+            height=260,
+        )
+
+        st.caption("📋 After speaking, tap '✅ Use This Transcript' — then **copy and paste** "
+                   "the text into the Your Answer box below. (Streamlit doesn't allow direct fill, so quick copy-paste!)")
+
+        
         mock_q = st.text_area("Question", height=80, key="mock_q_in")
         mock_a = st.text_area("Your Answer", height=200, key="mock_a_in")
         if st.button("📊 Evaluate My Answer", type="primary", use_container_width=True):
