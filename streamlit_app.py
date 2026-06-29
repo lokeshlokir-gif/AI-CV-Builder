@@ -1361,10 +1361,9 @@ elif page == "🎙️ Mock Interview":
         category = None
         mock_domain = None
 
-       
-        if source == "📋 From Job Description":
+        if "Job Description" in source:
             mock_jd = st.text_area("Paste JD", height=200, key="mock_jd")
-        elif source == "🎯 By Domain / Field":
+        else:
             cat_col, dom_col = st.columns([1, 2])
             with cat_col:
                 category = st.selectbox("Category", list(DOMAIN_GROUPS.keys()), key="mock_cat")
@@ -1380,18 +1379,11 @@ elif page == "🎙️ Mock Interview":
         n_q = st.radio("Number of questions", ["10", "15", "20"], index=1,
                        horizontal=True, key="mock_n")
 
-    # Build per-domain key for history tracking   
-    if source == "📋 From Job Description":
-        history_key = f"JD::{exp_level}::{(mock_jd[:80] or 'na')}"
-    else:
-        history_key = f"DOM::{category}::{mock_domain}::{exp_level}"
-
-    # Show history count so you can SEE anti-repeat is tracking
-    hist_count = len(st.session_state.get("mock_history", {}).get(history_key, []))
-    if hist_count > 0:
-        st.caption(f"📊 Anti-repeat history: **{hist_count} questions tracked** "
-                   f"(AI will not repeat these)"
-
+    # Build per-domain key for history tracking
+    history_key = (
+        f"JD::{exp_level}::{(mock_jd[:80] or 'na')}" if "Job Description" in source
+        else f"DOM::{category}::{mock_domain}::{exp_level}"
+    )
 
     # Hide stale on settings change
     sig = f"{source}|{category}|{mock_domain}|{exp_level}|{n_q}|{mock_jd[:100]}"
@@ -1401,24 +1393,12 @@ elif page == "🎙️ Mock Interview":
                    "to refresh for the new selection.")
         st.session_state.pop("mock_questions", None)
 
-    col_g1, col_g2, col_g3 = st.columns([2, 2, 1])
+    col_g1, col_g2 = st.columns([3, 1])
     with col_g1:
-        gen_clicked = st.button("🎯 Generate Questions", type="primary",
-                                use_container_width=True, key="mock_gen_btn")
+        gen_clicked = st.button("🎯 Generate Questions", type="primary", use_container_width=True)
     with col_g2:
         regen_clicked = st.button("🔄 Regenerate (different)", use_container_width=True,
-                                  key="mock_regen_btn",
-                                  help="Force brand new set, avoiding all previous questions")
-    with col_g3:
-        clear_clicked = st.button("🧹 Clear", use_container_width=True,
-                                  key="mock_clear_btn",
-                                  help="Reset anti-repeat history for this selection")
-
-    if clear_clicked:
-        st.session_state["mock_history"].pop(history_key, None)
-        st.session_state.pop("mock_questions", None)
-        st.success("✅ History cleared for this selection. Tap Generate for a fresh start.")
-        st.rerun()
+                                  help="Force a brand new set; anti-repeat list grows with each click")
 
     if gen_clicked or regen_clicked:
         # Always pass history — even on first Generate — to push AI away from any cached patterns
@@ -1441,12 +1421,8 @@ elif page == "🎙️ Mock Interview":
                     }
                     # Append parsed questions to history for next round
                     new_qs = _parse_questions(result)
-                if new_qs:
-                    st.session_state["mock_history"].setdefault(history_key, []).extend(new_qs)
-                    st.success(f"✅ Tracked {len(new_qs)} questions in anti-repeat history "
-                               f"(total: {len(st.session_state['mock_history'][history_key])})")
-                else:
-                    st.warning("⚠️ Couldn't parse questions for tracking. Use 🧹 Clear and retry.")
+                    if new_qs:
+                        st.session_state["mock_history"].setdefault(history_key, []).extend(new_qs)
         else:
             result = call_ai(
                 p_mock_dom(mock_domain, int(n_q), exp_level, history_questions=history),
