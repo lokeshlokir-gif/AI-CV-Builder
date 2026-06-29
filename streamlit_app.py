@@ -766,52 +766,64 @@ Year:
 """
 
 def _parse_questions(text):
-    """SUPER ROBUST parser — catches almost any AI question format."""
+    """SUPER ROBUST parser — catches almost any AI question format. Rejects preamble."""
     if not text: return []
     out = []
-    # Aggressive cleanup: strip ALL markdown, emojis at line start, special chars
-    cleaned = re.sub(r'\*+', '', text)  # remove bold/italic stars
-    cleaned = re.sub(r'^#+\s*', '', cleaned, flags=re.MULTILINE)  # remove headings
-    
-    # Multiple patterns to catch every common format
-    patterns = [
-        r"^[\W_]*Q\s*\.?\s*\d+\s*[:.\)\-\]]\s*(.+)$",           # Q1: Q.1: Q 1)  
-        r"^[\W_]*\d+\s*[:.\)\-\]]\s*(.+)$",                      # 1. 1) 1- 1]
-        r"^[\W_]*Question\s*\d+\s*[:.\)\-\]]\s*(.+)$",           # Question 1:
-        r"^[\W_]*\d+\s+(.+\?)\s*$",                              # "1 What is...?"
+    cleaned = re.sub(r'\*+', '', text)
+    cleaned = re.sub(r'^#+\s*', '', cleaned, flags=re.MULTILINE)
+
+    # Lines/phrases that are AI preamble, NOT real questions
+    INTRO_BLOCKERS = [
+        "here are", "here is", "below are", "below is",
+        "these are", "this is", "i have", "i'll provide",
+        "let me", "as an", "as a", "based on", "okay",
+        "sure", "of course", "happy to", "absolutely",
+        "technical questions", "behavioural questions",
+        "behavioral questions", "situational questions",
+        "section", "category", "round", "part",
     ]
-    
+    SECTION_HEADERS = {
+        "technical", "behavioural", "behavioral", "situational",
+        "technical questions", "behavioural questions",
+        "behavioral questions", "situational questions",
+    }
+
+    patterns = [
+        r"^[\W_]*Q\s*\.?\s*\d+\s*[:.\)\-\]]\s*(.+)$",
+        r"^[\W_]*\d+\s*[:.\)\-\]]\s*(.+)$",
+        r"^[\W_]*Question\s*\d+\s*[:.\)\-\]]\s*(.+)$",
+    ]
+
     for line in cleaned.split("\n"):
         line = line.strip()
         if not line: continue
-        # Skip obvious non-questions (headers, separators)
         if line.startswith(("---", "===", "***", "###", "___")): continue
-        if line.upper() in ("TECHNICAL", "BEHAVIOURAL", "BEHAVIORAL", "SITUATIONAL",
-                            "TECHNICAL QUESTIONS", "BEHAVIOURAL QUESTIONS",
-                            "SITUATIONAL QUESTIONS"): continue
-        
+        low = line.lower().strip(" :*-#")
+        if low in SECTION_HEADERS: continue
+        if any(low.startswith(b) for b in INTRO_BLOCKERS): continue
+
         matched = False
         for pat in patterns:
             m = re.match(pat, line, flags=re.I)
             if m:
-                q = m.group(1).strip()
-                # Clean trailing/leading punctuation noise
-                q = q.strip(" :.-_*[]")
-                if len(q) > 10:  # accept shorter qs too now
+                q = m.group(1).strip(" :.-_*[]")
+                # Re-check for preamble after pattern strip
+                q_low = q.lower()
+                if any(q_low.startswith(b) for b in INTRO_BLOCKERS): continue
+                if len(q) > 10:
                     out.append(q)
                 matched = True
                 break
-        
-        # Fallback: any line ending with ? and reasonable length
-        if not matched and line.endswith("?") and len(line) > 15:
+
+        # Fallback for line ending with ? AND has reasonable length
+        if not matched and line.endswith("?") and len(line) > 20:
             if not line.isupper() and not line.startswith(("#", "-", "*", "=")):
-                # Strip any leading numbering/emoji noise
                 cleaned_q = re.sub(r"^[\W_\d]+", "", line).strip()
-                if len(cleaned_q) > 10:
+                if len(cleaned_q) > 15:
                     out.append(cleaned_q)
-                else:
+                elif len(line) > 15:
                     out.append(line)
-    
+
     return out
 
 
@@ -1461,24 +1473,49 @@ elif page == "🎙️ Mock Interview":
                 st.success(f"✅ Generated {len(new_qs)} questions (history: "
                            f"{len(st.session_state['mock_history'][history_key])})")
             else:
-                # Last-resort fallback: split by lines, accept anything reasonable
+                else:
+                # Stricter fallback: ONLY lines that look like real questions
                 fallback_qs = []
+                INTRO_BLOCKERS = [
+                    "here are", "here is", "below are", "below is",
+                    "these are", "this is", "i have", "i'll provide",
+                    "let me", "as an", "as a", "based on", "okay",
+                    "sure", "of course", "happy to", "absolutely",
+                    "technical questions", "behavioural questions",
+                    "behavioral questions", "situational questions",
+                    "section", "category", "round", "part",
+                ]
                 for ln in result.split("\n"):
-                    ln = ln.strip().strip("*").strip("-").strip()
-                    if 15 < len(ln) < 500 and not ln.isupper():
-                        fallback_qs.append(ln)
-                if fallback_qs:
-                    st.session_state["mock_history"].setdefault(history_key, []).extend(fallback_qs[:int(n_q)])
-                    st.session_state["mock_q_list"] = fallback_qs[:int(n_q)]
+                    ln = ln.strip().strip("*").strip("-").strip("#").strip()
+                    if len(ln) < 20 or len(ln) > 500: continue
+                    if ln.isupper(): continue
+                    low = ln.lower()
+                    # Reject intro/preamble lines
+                    if any(low.startswith(b) for b in INTRO_BLOCKERS): continue
+                    # Must look like a question OR have numbering
+                    has_question_mark = "?" in ln
+                    starts_with_num = bool(re.match(r"^[\d\W]*\d+", ln))
+                    if not (has_question_mark or starts_with_num): continue
+                    # Strip leading numbering noise
+                    cleaned_q = re.sub(r"^[\W_\d]*\d+\s*[:.\)\-\]]\s*", "", ln).strip()
+                    cleaned_q = cleaned_q.strip("*").strip()
+                    if len(cleaned_q) > 15:
+                        fallback_qs.append(cleaned_q)
+
+                if len(fallback_qs) >= 3:
+                    fallback_qs = fallback_qs[:int(n_q)]
+                    st.session_state["mock_history"].setdefault(history_key, []).extend(fallback_qs)
+                    st.session_state["mock_q_list"] = fallback_qs
                     st.session_state["mock_q_idx"] = 0
                     st.session_state["q_state"] = {}
-                    st.info(f"ℹ️ Used fallback parser — got {len(fallback_qs[:int(n_q)])} questions. "
+                    st.info(f"ℹ️ Used fallback parser — got {len(fallback_qs)} questions. "
                             "Format was unusual but questions are usable.")
                 else:
-                    st.warning("⚠️ AI returned unusual format. Tap 🧹 Clear and retry, "
-                               "or check Settings → make sure your API key is valid.")
-                    with st.expander("🔍 Debug: see raw AI response"):
-                        st.code(result[:2000])
+                    st.warning("⚠️ AI returned unusual format. Tap 🧹 Clear and retry. "
+                               "If it keeps happening, switch to **Gemini 2.5 Flash** "
+                               "in sidebar (most reliable format).")
+                    with st.expander("🔍 Debug: see raw AI response (helps me fix the parser)"):
+                        st.code(result[:3000])
 
     # ---- Questions display ----
     if "mock_q_list" in st.session_state and st.session_state["mock_q_list"]:
