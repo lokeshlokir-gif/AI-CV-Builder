@@ -1362,15 +1362,15 @@ elif page == "🎙️ Mock Interview":
         mock_domain = None
 
        
-    if source == "📋 From Job Description":
-        mock_jd = st.text_area("Paste JD", height=200, key="mock_jd")
-    elif source == "🎯 By Domain / Field":
-        cat_col, dom_col = st.columns([1, 2])
-        with cat_col:
-            category = st.selectbox("Category", list(DOMAIN_GROUPS.keys()), key="mock_cat")
-        with dom_col:
-            mock_domain = st.selectbox("Domain / Field", DOMAIN_GROUPS[category], key="mock_dom")
-        st.caption(f"📚 **{len(DOMAIN_GROUPS[category])}** option(s) under **{category}** "
+if source == "📋 From Job Description":
+            mock_jd = st.text_area("Paste JD", height=200, key="mock_jd")
+        elif source == "🎯 By Domain / Field":
+            cat_col, dom_col = st.columns([1, 2])
+            with cat_col:
+                category = st.selectbox("Category", list(DOMAIN_GROUPS.keys()), key="mock_cat")
+            with dom_col:
+                mock_domain = st.selectbox("Domain / Field", DOMAIN_GROUPS[category], key="mock_dom")
+            st.caption(f"📚 **{len(DOMAIN_GROUPS[category])}** option(s) under **{category}** "
                        f"• Total: **{sum(len(v) for v in DOMAIN_GROUPS.values())}**")
 
         exp_level = st.selectbox("🎯 Experience Level", EXP_LEVELS, index=2, key="mock_exp",
@@ -1381,7 +1381,7 @@ elif page == "🎙️ Mock Interview":
                        horizontal=True, key="mock_n")
 
     # Build per-domain key for history tracking   
-    if source == "📋 From Job Description":
+if source == "📋 From Job Description":
         history_key = f"JD::{exp_level}::{(mock_jd[:80] or 'na')}"
     else:
         history_key = f"DOM::{category}::{mock_domain}::{exp_level}"
