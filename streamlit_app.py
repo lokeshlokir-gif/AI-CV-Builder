@@ -1381,7 +1381,7 @@ elif page == "🎙️ Mock Interview":
                        horizontal=True, key="mock_n")
 
     # Build per-domain key for history tracking   
-if source == "📋 From Job Description":
+    if source == "📋 From Job Description":
         history_key = f"JD::{exp_level}::{(mock_jd[:80] or 'na')}"
     else:
         history_key = f"DOM::{category}::{mock_domain}::{exp_level}"
