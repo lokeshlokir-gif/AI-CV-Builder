@@ -1372,7 +1372,6 @@ elif source == "🎯 By Domain / Field":
             mock_domain = st.selectbox("Domain / Field", DOMAIN_GROUPS[category], key="mock_dom")
         st.caption(f"📚 **{len(DOMAIN_GROUPS[category])}** option(s) under **{category}** "
                        f"• Total: **{sum(len(v) for v in DOMAIN_GROUPS.values())}**")
-`
 
         exp_level = st.selectbox("🎯 Experience Level", EXP_LEVELS, index=2, key="mock_exp",
                                  help="AI tailors difficulty to your level. Students get fundamentals, "
