@@ -1364,7 +1364,7 @@ elif page == "🎙️ Mock Interview":
        
 if source == "📋 From Job Description":
             mock_jd = st.text_area("Paste JD", height=200, key="mock_jd")
-elif source == "🎯 By Domain / Field":
+    elif source == "🎯 By Domain / Field":
             cat_col, dom_col = st.columns([1, 2])
             with cat_col:
                 category = st.selectbox("Category", list(DOMAIN_GROUPS.keys()), key="mock_cat")
