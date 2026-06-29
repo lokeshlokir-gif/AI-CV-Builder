@@ -1473,7 +1473,6 @@ elif page == "🎙️ Mock Interview":
                 st.success(f"✅ Generated {len(new_qs)} questions (history: "
                            f"{len(st.session_state['mock_history'][history_key])})")
             else:
-                else:
                 # Stricter fallback: ONLY lines that look like real questions
                 fallback_qs = []
                 INTRO_BLOCKERS = [
