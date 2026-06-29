@@ -1305,11 +1305,11 @@ elif page == "🎤 Interview Prep":
                          "Interview_Questions", name_override="Candidate")
 
 # ============================================================
-# PAGE: MOCK INTERVIEW — FIXED: voice + polish + Regenerate works
+# PAGE: MOCK INTERVIEW — REDESIGNED (cards + auto-fill voice + navigation)
 # ============================================================
 elif page == "🎙️ Mock Interview":
     st.title("🎙️ Mock Interview")
-    st.caption("AI generates questions, you can speak the answer, AI polishes & evaluates.")
+    st.caption("Pick a question → speak your answer → tap Polish → AI evaluates. One smooth flow!")
 
     if "mock_history" not in st.session_state:
         st.session_state["mock_history"] = {}
@@ -1345,11 +1345,9 @@ elif page == "🎙️ Mock Interview":
     else:
         history_key = f"DOM::{category}::{mock_domain}::{exp_level}"
 
-    # ---- Show history counter so you can SEE anti-repeat working ----
     hist_count = len(st.session_state["mock_history"].get(history_key, []))
     if hist_count > 0:
-        st.caption(f"📊 Anti-repeat history: **{hist_count} questions tracked** "
-                   f"(AI will not repeat these)")
+        st.caption(f"📊 Anti-repeat history: **{hist_count} questions tracked**")
 
     # ---- Stale check ----
     sig = f"{source}|{category}|{mock_domain}|{exp_level}|{n_q}|{mock_jd[:100]}"
@@ -1357,30 +1355,31 @@ elif page == "🎙️ Mock Interview":
        "mock_questions" in st.session_state:
         st.warning("⚠️ Settings changed — old questions hidden. Tap Generate.")
         st.session_state.pop("mock_questions", None)
+        st.session_state.pop("mock_q_list", None)
+        st.session_state.pop("mock_q_idx", None)
 
-    # ---- 3 buttons: Generate, Regenerate, Clear ----
+    # ---- 3 buttons ----
     col_g1, col_g2, col_g3 = st.columns([2, 2, 1])
     with col_g1:
         gen_clicked = st.button("🎯 Generate Questions", type="primary",
                                 use_container_width=True, key="mock_gen_btn")
     with col_g2:
         regen_clicked = st.button("🔄 Regenerate (different)", use_container_width=True,
-                                  key="mock_regen_btn",
-                                  help="Force a brand new set, avoiding all previous questions")
+                                  key="mock_regen_btn")
     with col_g3:
         clear_clicked = st.button("🧹 Clear", use_container_width=True,
-                                  key="mock_clear_btn",
-                                  help="Reset anti-repeat history for this selection")
+                                  key="mock_clear_btn")
 
     if clear_clicked:
         st.session_state["mock_history"].pop(history_key, None)
         st.session_state.pop("mock_questions", None)
-        st.success("✅ History cleared for this selection. Tap Generate.")
+        st.session_state.pop("mock_q_list", None)
+        st.session_state.pop("mock_q_idx", None)
+        st.success("✅ History cleared. Tap Generate.")
         st.rerun()
 
     if gen_clicked or regen_clicked:
         history = st.session_state["mock_history"].get(history_key, [])
-
         if source == "📋 From Job Description":
             if not mock_jd.strip():
                 st.warning("Please paste a JD first.")
@@ -1395,53 +1394,105 @@ elif page == "🎙️ Mock Interview":
             meta_domain = f"{category} → {mock_domain}"
 
         result = call_ai(prompt, temperature=1.0)
-
         if result:
             st.session_state["mock_questions"] = result
             st.session_state["mock_sig"] = sig
             st.session_state["mock_meta"] = {
-                "source": "JD" if source == "📋 From Job Description" else "Domain",
-                "domain": meta_domain,
-                "level": exp_level,
-                "n": n_q,
+                "domain": meta_domain, "level": exp_level, "n": n_q,
                 "ts": datetime.now().strftime("%Y-%m-%d %H:%M"),
             }
-            # Parse questions and add to history
             new_qs = _parse_questions(result)
             if new_qs:
                 st.session_state["mock_history"].setdefault(history_key, []).extend(new_qs)
-                st.success(f"✅ Tracked {len(new_qs)} questions in anti-repeat history "
-                           f"(total: {len(st.session_state['mock_history'][history_key])})")
+                st.session_state["mock_q_list"] = new_qs
+                st.session_state["mock_q_idx"] = 0
+                # Reset answer state on new generation
+                st.session_state.pop("mock_a_in", None)
+                st.session_state.pop("mock_feedback", None)
+                st.session_state.pop("polished_preview", None)
+                st.success(f"✅ Generated {len(new_qs)} questions (history: "
+                           f"{len(st.session_state['mock_history'][history_key])})")
             else:
-                st.warning("⚠️ Couldn't parse questions for tracking. Use 🧹 Clear and retry.")
+                st.warning("⚠️ Couldn't parse questions. Tap 🧹 Clear and retry.")
 
-    # ---- Display generated questions ----
-    if "mock_questions" in st.session_state:
+    # ---- Show questions list ----
+    if "mock_q_list" in st.session_state and st.session_state["mock_q_list"]:
+        q_list = st.session_state["mock_q_list"]
         meta = st.session_state.get("mock_meta", {})
-        st.markdown(f"### 📋 Generated Questions "
-                    f"<span style='font-size:14px;color:#888'>"
-                    f"({meta.get('domain','')} • {meta.get('level','')} • {meta.get('ts','')})</span>",
-                    unsafe_allow_html=True)
-        st.text_area("Questions", st.session_state["mock_questions"], height=350,
-                     key="mock_q_out", label_visibility="collapsed")
 
-        if st.button("💾 Save to My Library", use_container_width=True, key="lib_save_q"):
+        st.markdown("---")
+        st.markdown(f"### 📋 {len(q_list)} Questions Generated "
+                    f"<span style='font-size:14px;color:#888'>"
+                    f"({meta.get('domain','')} • {meta.get('level','')})</span>",
+                    unsafe_allow_html=True)
+
+        # Save full set to library
+        if st.button("💾 Save full set to My Library", use_container_width=True, key="lib_save_q"):
             lib = st.session_state.setdefault("library", [])
             lib.append({"type": "questions", "meta": meta,
                         "content": st.session_state["mock_questions"]})
             st.success(f"✅ Saved! Library has {len(lib)} item(s).")
 
-        st.markdown("---")
-        st.markdown("### 📝 Practice & Evaluate")
+        # ---- Question navigator ----
+        st.markdown("#### 🎯 Pick Question to Practice")
+        q_picker = st.selectbox(
+            "Or pick from dropdown",
+            options=list(range(len(q_list))),
+            format_func=lambda i: f"Q{i+1}: {q_list[i][:80]}{'...' if len(q_list[i]) > 80 else ''}",
+            index=st.session_state.get("mock_q_idx", 0),
+            key="mock_q_picker",
+            label_visibility="collapsed"
+        )
+        if q_picker != st.session_state.get("mock_q_idx"):
+            st.session_state["mock_q_idx"] = q_picker
+            st.session_state.pop("mock_a_in", None)
+            st.session_state.pop("mock_feedback", None)
+            st.session_state.pop("polished_preview", None)
+            st.rerun()
 
-        # ============================================================
-        # 🎤 VOICE INPUT — speak + AI Polish + auto-fill answer
-        # ============================================================
-        st.markdown("#### 🎤 Speak your answer (optional)")
+        # Prev / Counter / Next
+        nav_c1, nav_c2, nav_c3 = st.columns([1, 2, 1])
+        with nav_c1:
+            if st.button("⬅️ Previous", use_container_width=True, key="prev_q",
+                         disabled=(st.session_state["mock_q_idx"] == 0)):
+                st.session_state["mock_q_idx"] -= 1
+                st.session_state.pop("mock_a_in", None)
+                st.session_state.pop("mock_feedback", None)
+                st.session_state.pop("polished_preview", None)
+                st.rerun()
+        with nav_c2:
+            st.markdown(
+                f"<div style='text-align:center;padding:8px;background:#e8eaf6;"
+                f"border-radius:6px;font-weight:600;font-size:15px;'>"
+                f"Question {st.session_state['mock_q_idx']+1} of {len(q_list)}</div>",
+                unsafe_allow_html=True)
+        with nav_c3:
+            if st.button("Next ➡️", use_container_width=True, key="next_q",
+                         disabled=(st.session_state["mock_q_idx"] == len(q_list) - 1)):
+                st.session_state["mock_q_idx"] += 1
+                st.session_state.pop("mock_a_in", None)
+                st.session_state.pop("mock_feedback", None)
+                st.session_state.pop("polished_preview", None)
+                st.rerun()
+
+        # ---- Active question ----
+        active_q = q_list[st.session_state["mock_q_idx"]]
+        st.markdown(
+            f"<div style='background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);"
+            f"padding:20px;border-radius:10px;margin-top:12px;color:white;'>"
+            f"<div style='color:#FFEB3B;font-size:13px;font-weight:700;margin-bottom:6px;'>"
+            f"❓ QUESTION {st.session_state['mock_q_idx']+1}:</div>"
+            f"<div style='font-size:16px;line-height:1.6;'>{active_q}</div></div>",
+            unsafe_allow_html=True)
+
+        st.markdown("---")
+        st.markdown("### 🎤 Answer with Voice or Type")
+
+        # ---- Voice info banner ----
         st.info(
-            "🍎 **iPhone Safari**: Best with **English (India)** — speak naturally in Hinglish/Kanglish. "
+            "🍎 **iPhone Safari**: Best with **English (India)** — speak Hinglish naturally. "
             "**Android Chrome** supports Kannada/Tamil/Telugu directly. "
-            "**AI Polish** converts ANY mixed speech to professional English!"
+            "✨ **AI Polish** converts ANY mixed speech to professional English!"
         )
 
         vcol1, vcol2 = st.columns([3, 2])
@@ -1475,42 +1526,38 @@ elif page == "🎙️ Mock Interview":
 
         lang_code = voice_lang.split(" — ")[0]
 
+        # ---- Voice recorder with AUTO-FILL via JS bridge ----
         components.html(
             f"""
             <div style="font-family:system-ui,sans-serif;padding:16px;
                         background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);
                         border-radius:12px;color:white;">
                 <button id="vbtn" style="
-                    width:100%;padding:20px;font-size:18px;font-weight:700;
+                    width:100%;padding:18px;font-size:17px;font-weight:700;
                     background:linear-gradient(135deg,#4CAF50 0%,#2E7D32 100%);
-                    color:white;border:none;border-radius:10px;
-                    cursor:pointer;box-shadow:0 4px 12px rgba(76,175,80,0.4);">
+                    color:white;border:none;border-radius:10px;cursor:pointer;
+                    box-shadow:0 4px 12px rgba(76,175,80,0.4);">
                     🎤 Tap to Start Recording
                 </button>
-                <div id="vstat" style="margin-top:12px;font-size:14px;color:#b0c4de;
+                <div id="vstat" style="margin-top:10px;font-size:14px;color:#b0c4de;
                                       text-align:center;min-height:22px;font-weight:500;">
-                    Tap above and speak naturally
+                    Tap to record • Transcript auto-fills below
                 </div>
-                <div style="margin-top:10px;display:flex;justify-content:space-between;
+                <div style="margin-top:8px;display:flex;justify-content:space-between;
                             font-size:12px;color:#9aa5b8;">
                     <span id="vwc">📝 0 words</span>
                     <span id="vdur">⏱️ 0:00</span>
                 </div>
-                <div id="vtxt" style="margin-top:10px;padding:14px;
+                <div id="vtxt" style="margin-top:10px;padding:12px;
                                       background:rgba(255,255,255,0.08);
                                       border:1px solid rgba(255,255,255,0.15);
                                       border-radius:8px;
-                                      min-height:140px;max-height:220px;overflow-y:auto;
-                                      font-size:15px;line-height:1.6;
+                                      min-height:100px;max-height:160px;overflow-y:auto;
+                                      font-size:14px;line-height:1.5;
                                       white-space:pre-wrap;color:#e8eaf6;"></div>
-                <div id="vfb" style="margin-top:12px;padding:10px;text-align:center;
-                                      font-size:14px;font-weight:600;border-radius:6px;
-                                      min-height:20px;"></div>
-                <div style="margin-top:8px;font-size:13px;color:#FFEB3B;text-align:center;
-                            line-height:1.5;font-weight:600;">
-                    👇 After stop, transcript auto-copies to clipboard<br>
-                    Paste in blue box below + tap "Polish & Use"
-                </div>
+                <div id="vfb" style="margin-top:10px;padding:8px;text-align:center;
+                                      font-size:13px;font-weight:600;border-radius:6px;
+                                      min-height:18px;"></div>
             </div>
             <script>
             (function() {{
@@ -1524,7 +1571,6 @@ elif page == "🎙️ Mock Interview":
                 if (!SR) {{
                     btn.disabled = true;
                     btn.style.background = '#888';
-                    btn.style.cursor = 'not-allowed';
                     btn.textContent = '❌ Voice not supported';
                     stat.textContent = 'Try Chrome (Android) or Safari (iPhone)';
                     return;
@@ -1537,23 +1583,45 @@ elif page == "🎙️ Mock Interview":
                 let recording = false;
                 let startTime = 0;
                 let timerInterval = null;
+
                 function doCopy(text) {{
                     if (navigator.clipboard && navigator.clipboard.writeText) {{
-                        navigator.clipboard.writeText(text).catch(() => fallback(text));
+                        navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
                     }} else {{
-                        fallback(text);
+                        fallbackCopy(text);
                     }}
                 }}
-                function fallback(text) {{
+                function fallbackCopy(text) {{
                     const ta = document.createElement('textarea');
                     ta.value = text;
-                    ta.style.position = 'fixed';
-                    ta.style.top = '-9999px';
+                    ta.style.position = 'fixed'; ta.style.top = '-9999px';
                     document.body.appendChild(ta);
                     ta.select();
                     try {{ document.execCommand('copy'); }} catch(e) {{}}
                     document.body.removeChild(ta);
                 }}
+
+                // AUTO-FILL the Streamlit text_area in parent window
+                function autoFillStreamlit(text) {{
+                    try {{
+                        const pDoc = window.parent.document;
+                        // Find the text_area by aria-label
+                        const textareas = pDoc.querySelectorAll('textarea[aria-label="Live transcript (auto-filled from voice)"]');
+                        if (textareas.length > 0) {{
+                            const ta = textareas[0];
+                            const setter = Object.getOwnPropertyDescriptor(
+                                window.parent.HTMLTextAreaElement.prototype, 'value'
+                            ).set;
+                            setter.call(ta, text);
+                            ta.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                            return true;
+                        }}
+                    }} catch(e) {{
+                        return false;
+                    }}
+                    return false;
+                }}
+
                 function updateStats() {{
                     const words = finalText.trim().split(/\\s+/).filter(w => w.length > 0).length;
                     wcEl.textContent = '📝 ' + words + ' words';
@@ -1564,12 +1632,12 @@ elif page == "🎙️ Mock Interview":
                         durEl.textContent = '⏱️ ' + m + ':' + (s < 10 ? '0' : '') + s;
                     }}
                 }}
+
                 btn.onclick = () => {{
                     if (!recording) {{
                         finalText = '';
                         txt.textContent = '';
                         fb.textContent = '';
-                        fb.style.background = '';
                         try {{
                             rec.start();
                             recording = true;
@@ -1591,11 +1659,18 @@ elif page == "🎙️ Mock Interview":
                         stat.textContent = 'Recording stopped';
                         if (finalText.trim()) {{
                             doCopy(finalText.trim());
-                            fb.textContent = '✅ Auto-copied! Paste below → Polish & Use';
-                            fb.style.background = 'rgba(76,175,80,0.2)';
-                            fb.style.color = '#90EE90';
+                            const filled = autoFillStreamlit(finalText.trim());
+                            if (filled) {{
+                                fb.textContent = '✅ Auto-filled! Tap "✨ Polish" below';
+                                fb.style.background = 'rgba(76,175,80,0.2)';
+                                fb.style.color = '#90EE90';
+                            }} else {{
+                                fb.textContent = '✅ Copied to clipboard! Paste below if not auto-filled';
+                                fb.style.background = 'rgba(255,235,59,0.2)';
+                                fb.style.color = '#FFEB3B';
+                            }}
                         }} else {{
-                            fb.textContent = '⚠️ No speech detected. Try again.';
+                            fb.textContent = '⚠️ No speech detected';
                             fb.style.background = 'rgba(255,152,0,0.2)';
                             fb.style.color = '#FFB74D';
                         }}
@@ -1628,67 +1703,100 @@ elif page == "🎙️ Mock Interview":
             }})();
             </script>
             """,
-            height=580,
+            height=400,
         )
 
-        # ---- Paste box + Polish & Use buttons (auto-fills answer box) ----
-        st.markdown("##### ✨ Paste & Polish — auto-fills 'Your Answer' below")
+        # ---- Live transcript text_area (JS auto-fills this) ----
         raw_voice_text = st.text_area(
-            "Paste your transcript here (long-press → Paste)",
+            "Live transcript (auto-filled from voice)",
             height=100, key="raw_voice_in",
-            placeholder="After recording, long-press here and tap 'Paste'..."
+            placeholder="Voice transcript appears here automatically after you stop recording. "
+                        "You can also paste or type here manually."
         )
 
+        # ---- Polish | Use Raw buttons ----
         pcol1, pcol2 = st.columns(2)
         with pcol1:
-            polish_use = st.button("✨ Polish & Use as Answer", use_container_width=True,
-                                   type="primary", key="polish_use_btn")
+            polish_clicked = st.button("✨ Polish My Speech", use_container_width=True,
+                                       type="primary", key="polish_use_btn",
+                                       help="AI cleans rough speech → professional English")
         with pcol2:
-            use_raw = st.button("⚡ Use Raw (skip polish)", use_container_width=True,
-                                key="use_raw_btn")
+            use_raw_clicked = st.button("⚡ Use Raw Speech", use_container_width=True,
+                                        key="use_raw_btn",
+                                        help="Use transcript as-is without AI cleanup")
 
-        if polish_use:
+        if polish_clicked:
             if not raw_voice_text.strip():
-                st.warning("Paste your transcript first.")
+                st.warning("Speak first (or paste text in the transcript box above).")
             else:
                 polish_prompt = (
                     "You are a professional interview answer editor. "
-                    "The user has spoken an interview answer that may be in mixed languages "
-                    "(English + Hindi/Kannada/Tamil/Telugu etc.), with grammar mistakes, "
-                    "filler words (um, uh), and rough phrasing.\n\n"
+                    "User has spoken an answer that may mix languages "
+                    "(English + Hindi/Kannada/Tamil/Telugu), with grammar mistakes, "
+                    "filler words, and rough phrasing.\n\n"
                     "Convert into polished professional English. Use STAR if possible. "
                     "Remove fillers. Fix grammar. Translate non-English to English. "
                     "Keep 3-6 sentences. Do NOT fabricate. Output ONLY polished answer.\n\n"
+                    "INTERVIEW QUESTION: " + active_q + "\n\n"
                     "---ROUGH TRANSCRIPT---\n" + raw_voice_text +
                     "\n\n---POLISHED ANSWER---"
                 )
                 with st.spinner("✨ AI polishing your answer..."):
                     polished = call_ai(polish_prompt, temperature=0.4)
                 if polished:
-                    st.session_state["mock_a_in"] = polished.strip()
-                    st.success("✅ Polished and filled into 'Your Answer' below! Scroll down 👇")
+                    st.session_state["polished_preview"] = polished.strip()
                     st.rerun()
 
-        if use_raw:
+        if use_raw_clicked:
             if not raw_voice_text.strip():
-                st.warning("Paste your transcript first.")
+                st.warning("Speak first (or paste text in the transcript box above).")
             else:
                 st.session_state["mock_a_in"] = raw_voice_text.strip()
-                st.success("✅ Filled into 'Your Answer' below! Scroll down 👇")
+                st.session_state.pop("polished_preview", None)
+                st.success("✅ Raw transcript used as your answer. Scroll down to Evaluate.")
                 st.rerun()
 
+        # ---- Polished preview (if user clicked Polish) ----
+        if "polished_preview" in st.session_state:
+            st.markdown("---")
+            st.markdown("##### ✨ Polished Version (review then use)")
+            st.markdown(
+                f"<div style='background:#E8F5E9;padding:14px;border-radius:8px;"
+                f"border-left:4px solid #4CAF50;color:#1a1a2e;font-size:15px;line-height:1.6;'>"
+                f"{st.session_state['polished_preview']}</div>",
+                unsafe_allow_html=True)
+            pp1, pp2, pp3 = st.columns(3)
+            with pp1:
+                if st.button("✅ Use This Polished", use_container_width=True,
+                             type="primary", key="use_polished_btn"):
+                    st.session_state["mock_a_in"] = st.session_state["polished_preview"]
+                    st.session_state.pop("polished_preview", None)
+                    st.success("✅ Polished answer set. Scroll down to Evaluate.")
+                    st.rerun()
+            with pp2:
+                if st.button("✏️ Edit First", use_container_width=True, key="edit_polished_btn"):
+                    st.session_state["mock_a_in"] = st.session_state["polished_preview"]
+                    st.session_state.pop("polished_preview", None)
+                    st.info("✅ Polished answer copied to editor below. Edit as needed.")
+                    st.rerun()
+            with pp3:
+                if st.button("🗑️ Discard", use_container_width=True, key="discard_polished_btn"):
+                    st.session_state.pop("polished_preview", None)
+                    st.rerun()
+
         st.markdown("---")
-        st.markdown("##### 📝 Your Answer (auto-filled from voice, or type manually)")
-        mock_q = st.text_area("Question", height=80, key="mock_q_in")
-        mock_a = st.text_area("Your Answer", height=200, key="mock_a_in")
-        if st.button("📊 Evaluate My Answer", type="primary", use_container_width=True):
-            if not mock_q.strip() or not mock_a.strip():
-                st.warning("Please provide both question and answer.")
+        st.markdown("##### 📝 Your Answer (auto-filled, but editable)")
+        mock_a = st.text_area("Your Answer", height=200, key="mock_a_in",
+                              label_visibility="collapsed")
+
+        if st.button("📊 Evaluate My Answer", type="primary",
+                     use_container_width=True, key="eval_btn"):
+            if not mock_a.strip():
+                st.warning("Please provide an answer (speak, polish, or type).")
             else:
-                result = call_ai(p_mock_eval(mock_q, mock_a, exp_level))
+                result = call_ai(p_mock_eval(active_q, mock_a, exp_level))
                 if result:
                     st.session_state["mock_feedback"] = result
-                    st.session_state["mock_feedback_q"] = mock_q
 
         if "mock_feedback" in st.session_state:
             st.markdown("### 📊 AI Feedback")
@@ -1697,16 +1805,34 @@ elif page == "🎙️ Mock Interview":
             download_buttons(st.session_state["mock_feedback"], region,
                              "Mock_Feedback", name_override="Candidate")
 
-            if st.button("💾 Save feedback to My Library", use_container_width=True,
-                         key="lib_save_fb"):
-                lib = st.session_state.setdefault("library", [])
-                lib.append({
-                    "type": "feedback",
-                    "meta": {**(st.session_state.get("mock_meta") or {}),
-                             "question": st.session_state.get("mock_feedback_q", "")},
-                    "content": st.session_state["mock_feedback"],
-                })
-                st.success(f"✅ Saved! Library has {len(lib)} item(s).")
+            fb_c1, fb_c2, fb_c3 = st.columns(3)
+            with fb_c1:
+                if st.button("💾 Save to Library", use_container_width=True, key="lib_save_fb"):
+                    lib = st.session_state.setdefault("library", [])
+                    lib.append({
+                        "type": "feedback",
+                        "meta": {**(st.session_state.get("mock_meta") or {}),
+                                 "question": active_q},
+                        "content": st.session_state["mock_feedback"],
+                    })
+                    st.success(f"✅ Saved! Library has {len(lib)} item(s).")
+            with fb_c2:
+                next_disabled = st.session_state["mock_q_idx"] >= len(q_list) - 1
+                if st.button("🎯 Next Question →", use_container_width=True, type="primary",
+                             key="next_q_btn", disabled=next_disabled):
+                    st.session_state["mock_q_idx"] += 1
+                    st.session_state.pop("mock_a_in", None)
+                    st.session_state.pop("mock_feedback", None)
+                    st.session_state.pop("polished_preview", None)
+                    st.session_state.pop("raw_voice_in", None)
+                    st.rerun()
+            with fb_c3:
+                if st.button("🔁 Try Again", use_container_width=True, key="retry_btn"):
+                    st.session_state.pop("mock_a_in", None)
+                    st.session_state.pop("mock_feedback", None)
+                    st.session_state.pop("polished_preview", None)
+                    st.session_state.pop("raw_voice_in", None)
+                    st.rerun()
 
 # ============================================================
 # PAGE: COACHING
