@@ -765,35 +765,55 @@ Name:
 Year:
 """
 
-# ============================================================
-# ROBUST QUESTION PARSER (Bug fix #1)
-# ============================================================
 def _parse_questions(text):
-    """Robust parser - handles Q1:, 1., 1), **Q1:**, plain, etc."""
+    """SUPER ROBUST parser — catches almost any AI question format."""
     if not text: return []
     out = []
-    cleaned = re.sub(r'\*+', '', text)
+    # Aggressive cleanup: strip ALL markdown, emojis at line start, special chars
+    cleaned = re.sub(r'\*+', '', text)  # remove bold/italic stars
+    cleaned = re.sub(r'^#+\s*', '', cleaned, flags=re.MULTILINE)  # remove headings
+    
+    # Multiple patterns to catch every common format
     patterns = [
-        r"^Q\s*\d+\s*[:.\)\-]\s*(.+)$",
-        r"^\d+\s*[:.\)\-]\s*(.+)$",
-        r"^Question\s*\d+\s*[:.\)\-]\s*(.+)$",
+        r"^[\W_]*Q\s*\.?\s*\d+\s*[:.\)\-\]]\s*(.+)$",           # Q1: Q.1: Q 1)  
+        r"^[\W_]*\d+\s*[:.\)\-\]]\s*(.+)$",                      # 1. 1) 1- 1]
+        r"^[\W_]*Question\s*\d+\s*[:.\)\-\]]\s*(.+)$",           # Question 1:
+        r"^[\W_]*\d+\s+(.+\?)\s*$",                              # "1 What is...?"
     ]
+    
     for line in cleaned.split("\n"):
         line = line.strip()
         if not line: continue
+        # Skip obvious non-questions (headers, separators)
+        if line.startswith(("---", "===", "***", "###", "___")): continue
+        if line.upper() in ("TECHNICAL", "BEHAVIOURAL", "BEHAVIORAL", "SITUATIONAL",
+                            "TECHNICAL QUESTIONS", "BEHAVIOURAL QUESTIONS",
+                            "SITUATIONAL QUESTIONS"): continue
+        
         matched = False
         for pat in patterns:
             m = re.match(pat, line, flags=re.I)
             if m:
                 q = m.group(1).strip()
-                if len(q) > 12:
+                # Clean trailing/leading punctuation noise
+                q = q.strip(" :.-_*[]")
+                if len(q) > 10:  # accept shorter qs too now
                     out.append(q)
                 matched = True
                 break
-        if not matched and line.endswith("?") and len(line) > 25:
-            if not line.isupper() and not line.startswith("#"):
-                out.append(line)
+        
+        # Fallback: any line ending with ? and reasonable length
+        if not matched and line.endswith("?") and len(line) > 15:
+            if not line.isupper() and not line.startswith(("#", "-", "*", "=")):
+                # Strip any leading numbering/emoji noise
+                cleaned_q = re.sub(r"^[\W_\d]+", "", line).strip()
+                if len(cleaned_q) > 10:
+                    out.append(cleaned_q)
+                else:
+                    out.append(line)
+    
     return out
+``
 
 # ============================================================
 # STREAMLIT CONFIG + CSS
@@ -1441,7 +1461,24 @@ elif page == "🎙️ Mock Interview":
                 st.success(f"✅ Generated {len(new_qs)} questions (history: "
                            f"{len(st.session_state['mock_history'][history_key])})")
             else:
-                st.warning("⚠️ Couldn't parse questions. Tap 🧹 Clear and retry.")
+                # Last-resort fallback: split by lines, accept anything reasonable
+                fallback_qs = []
+                for ln in result.split("\n"):
+                    ln = ln.strip().strip("*").strip("-").strip()
+                    if 15 < len(ln) < 500 and not ln.isupper():
+                        fallback_qs.append(ln)
+                if fallback_qs:
+                    st.session_state["mock_history"].setdefault(history_key, []).extend(fallback_qs[:int(n_q)])
+                    st.session_state["mock_q_list"] = fallback_qs[:int(n_q)]
+                    st.session_state["mock_q_idx"] = 0
+                    st.session_state["q_state"] = {}
+                    st.info(f"ℹ️ Used fallback parser — got {len(fallback_qs[:int(n_q)])} questions. "
+                            "Format was unusual but questions are usable.")
+                else:
+                    st.warning("⚠️ AI returned unusual format. Tap 🧹 Clear and retry, "
+                               "or check Settings → make sure your API key is valid.")
+                    with st.expander("🔍 Debug: see raw AI response"):
+                        st.code(result[:2000])
 
     # ---- Questions display ----
     if "mock_q_list" in st.session_state and st.session_state["mock_q_list"]:
