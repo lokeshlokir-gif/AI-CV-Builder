@@ -1457,15 +1457,13 @@ elif page == "🎙️ Mock Interview":
         st.caption(f"📊 Anti-repeat history: **{hist_count} questions tracked**")
 
     sig = f"{source}|{category}|{mock_domain}|{exp_level}|{n_q}|{mock_jd[:100]}"
+    # SOFT warning only — never auto-delete user's data on settings change
+    # User must explicitly tap Regenerate or Clear to remove old questions.
     if st.session_state.get("mock_sig") and st.session_state["mock_sig"] != sig and \
        "mock_questions" in st.session_state:
-        st.warning("⚠️ Settings changed — old questions hidden. Tap Generate.")
-        if "mock_q_list" in st.session_state:
-            for i in range(len(st.session_state["mock_q_list"])):
-                for kf in [_voice_key, _answer_key, _polished_key, _feedback_key]:
-                    st.session_state.pop(kf(i), None)
-        for k in ["mock_questions", "mock_q_list", "mock_q_idx", "q_state"]:
-            st.session_state.pop(k, None)
+        st.info("ℹ️ You've changed settings since these questions were generated. "
+                "Your current questions & progress are SAFE. Tap **🔄 Regenerate** "
+                "to use the new settings, or **🧹 Clear** to start fresh.")
 
     col_g1, col_g2, col_g3 = st.columns([2, 2, 1])
     with col_g1:
