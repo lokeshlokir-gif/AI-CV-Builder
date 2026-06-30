@@ -1393,6 +1393,8 @@ elif page == "🎙️ Mock Interview":
         }
 
     def _ensure_q_keys(idx):
+        """Ensure session_state has voice/answer/polished/feedback keys for question idx.
+           If keys don't exist (e.g. after page navigation), restore from q_state."""
         state = st.session_state["q_state"].get(idx, {})
         vk, ak, pk, fk = _voice_key(idx), _answer_key(idx), _polished_key(idx), _feedback_key(idx)
         if vk not in st.session_state:
@@ -1403,6 +1405,17 @@ elif page == "🎙️ Mock Interview":
             st.session_state[pk] = state["polished"]
         if state.get("feedback") and fk not in st.session_state:
             st.session_state[fk] = state["feedback"]
+
+    def _autosave_q(idx):
+        """Always save current widget state to q_state — called every render."""
+        if idx is None or "mock_q_list" not in st.session_state:
+            return
+        st.session_state["q_state"][idx] = {
+            "transcript": st.session_state.get(_voice_key(idx), ""),
+            "answer":     st.session_state.get(_answer_key(idx), ""),
+            "polished":   st.session_state.get(_polished_key(idx), ""),
+            "feedback":   st.session_state.get(_feedback_key(idx), ""),
+        }
 
     def _switch_to(new_idx):
         _save_current_q()
@@ -1605,6 +1618,7 @@ elif page == "🎙️ Mock Interview":
 
         current_idx = st.session_state.get("mock_q_idx", 0)
         _ensure_q_keys(current_idx)
+        _autosave_q(current_idx)   # ← always sync widget state to q_state
 
         picked_idx = st.selectbox(
             "Pick question",
@@ -1820,22 +1834,23 @@ elif page == "🎙️ Mock Interview":
             height=200,
         )
 
-        # FORM wrap with PER-QUESTION key
-        with st.form(f"voice_polish_form_{current_idx}", clear_on_submit=False):
-            st.text_area(
-                voice_label,
-                height=180, key=_voice_key(current_idx),
-                placeholder="Your voice transcript appears here LIVE while you speak."
-            )
-            st.caption("👆 If text isn't here after speaking, long-press box → Paste (clipboard backup).")
+        # ---- Text_area OUTSIDE form for reliable cross-page persistence ----
+        st.text_area(
+            voice_label,
+            height=180, key=_voice_key(current_idx),
+            placeholder="Your voice transcript appears here LIVE while you speak."
+        )
+        st.caption("👆 If text isn't here after speaking, long-press box → Paste (clipboard backup).")
 
-            pcol1, pcol2 = st.columns(2)
-            with pcol1:
-                polish_clicked = st.form_submit_button(
-                    "✨ Polish My Speech", use_container_width=True, type="primary")
-            with pcol2:
-                use_raw_clicked = st.form_submit_button(
-                    "⚡ Use Raw Speech", use_container_width=True)
+        pcol1, pcol2 = st.columns(2)
+        with pcol1:
+            polish_clicked = st.button(
+                "✨ Polish My Speech", use_container_width=True,
+                type="primary", key=f"polish_btn_{current_idx}")
+        with pcol2:
+            use_raw_clicked = st.button(
+                "⚡ Use Raw Speech", use_container_width=True,
+                key=f"useraw_btn_{current_idx}")
 
         current_transcript = st.session_state.get(_voice_key(current_idx), "").strip()
 
@@ -1921,6 +1936,7 @@ elif page == "🎙️ Mock Interview":
                 if result and not _is_ai_error(result):
                     st.session_state[_feedback_key(current_idx)] = result
                     _save_current_q()
+                    st.rerun()   # ← refresh counter immediately!
                 elif result:
                     st.error(
                         "⚠️ AI service error — your answer was NOT evaluated. "
