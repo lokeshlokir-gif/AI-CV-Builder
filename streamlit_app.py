@@ -1798,27 +1798,30 @@ elif page == "🎙️ Mock Interview":
             height=200,
         )
 
-        # ---- BIG editable transcript box (auto-fills LIVE as you speak) ----
-        st.text_area(
-            "Recording transcript (auto-filled, editable)",
-            height=180, key="raw_voice_in",
-            placeholder="Your voice transcript appears here LIVE while you speak. "
-                        "Edit if needed, then tap Polish or Use Raw."
-        )
+        # ---- FORM wrap: forces Streamlit to read CURRENT textarea value ----
+        # This fixes "Transcript box is empty" bug — st.form re-reads the DOM
+        # value when form_submit_button is clicked, even after JS injection.
+        with st.form("voice_polish_form", clear_on_submit=False):
+            st.text_area(
+                "Recording transcript (auto-filled, editable)",
+                height=180, key="raw_voice_in",
+                placeholder="Your voice transcript appears here LIVE while you speak. "
+                            "Edit if needed, then tap Polish or Use Raw."
+            )
+            st.caption("👆 If text isn't here after speaking, long-press box → Paste (clipboard backup).")
 
-        # ---- Polish | Use Raw — READ FROM session_state, NOT local variable ----
-        pcol1, pcol2 = st.columns(2)
-        with pcol1:
-            polish_clicked = st.button("✨ Polish My Speech", use_container_width=True,
-                                       type="primary", key="polish_use_btn")
-        with pcol2:
-            use_raw_clicked = st.button("⚡ Use Raw Speech", use_container_width=True,
-                                        key="use_raw_btn")
+            pcol1, pcol2 = st.columns(2)
+            with pcol1:
+                polish_clicked = st.form_submit_button(
+                    "✨ Polish My Speech", use_container_width=True, type="primary")
+            with pcol2:
+                use_raw_clicked = st.form_submit_button(
+                    "⚡ Use Raw Speech", use_container_width=True)
 
-        # KEY FIX: read from session_state, not local variable
+        # After form submit, Streamlit has synced the DOM value to session_state
         current_transcript = st.session_state.get("raw_voice_in", "").strip()
 
-        if polish_clicked:
+        if polish_clicked:   
             if not current_transcript:
                 st.warning("⚠️ Transcript box is empty. Speak or type first.")
             else:
