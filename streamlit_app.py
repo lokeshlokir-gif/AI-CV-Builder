@@ -321,6 +321,9 @@ def _gem(pr, key, model, to=120, temperature=0.7):
         return True, res["candidates"][0]["content"]["parts"][0]["text"]
     elif sc == 429: return False, f"RATE_LIMITED|{model}"
     elif sc == 404: return False, f"MODEL_NOT_FOUND|{model}"
+    elif sc == 503: return False, f"RATE_LIMITED|{model}"
+    elif sc == 500: return False, f"RATE_LIMITED|{model}"
+
     else: return False, f"[Error {sc}] {bd[:200]}"
 
 def _openai(pr, key, model, to=120, temperature=0.7):
@@ -764,6 +767,30 @@ Languages:
 Name:
 Year:
 """
+def _is_ai_error(text):
+    """Detect if AI response is actually an error message, not real content."""
+    if not text or not text.strip():
+        return True
+    t = text.strip()
+    head = t[:200].lower()
+    error_markers = [
+        "[error ",
+        "[parse error]",
+        "rate_limited",
+        "model_not_found",
+        "invalid openai key",
+        "invalid claude",
+        "all models failed",
+        '"error":',
+        '"code": 4',
+        '"code": 5',
+        '"status": "unavailable"',
+        '"status": "internal"',
+        '"status": "resource_exhausted"',
+        "high demand",
+        "spikes in demand",
+    ]
+    return any(m in head for m in error_markers)
 
 def _parse_questions(text):
     """SUPER ROBUST parser — catches almost any AI question format. Rejects preamble."""
@@ -1337,46 +1364,50 @@ elif page == "🎤 Interview Prep":
                          "Interview_Questions", name_override="Candidate")
 
 # ============================================================
-# PAGE: MOCK INTERVIEW v5 — fixed Polish/Use Raw/Prev/Next + bigger transcript box
+# PAGE: MOCK INTERVIEW v6.1 — per-Q keys + error detection + 503 fallback
 # ============================================================
 elif page == "🎙️ Mock Interview":
     st.title("🎙️ Mock Interview")
-    st.caption("Pick Q → speak → polish → evaluate. Progress saved per question!")
+    st.caption("Pick Q → speak → polish → evaluate. Each question's progress is isolated!")
 
     if "mock_history" not in st.session_state:
         st.session_state["mock_history"] = {}
     if "q_state" not in st.session_state:
         st.session_state["q_state"] = {}
 
+    # ---- Per-question dynamic keys ----
+    def _voice_key(idx):    return f"raw_voice_in_{idx}"
+    def _answer_key(idx):   return f"mock_a_in_{idx}"
+    def _polished_key(idx): return f"polished_preview_{idx}"
+    def _feedback_key(idx): return f"mock_feedback_{idx}"
+
     def _save_current_q():
         idx = st.session_state.get("mock_q_idx")
         if idx is None or "mock_q_list" not in st.session_state:
             return
         st.session_state["q_state"][idx] = {
-            "transcript": st.session_state.get("raw_voice_in", ""),
-            "polished": st.session_state.get("polished_preview", ""),
-            "answer": st.session_state.get("mock_a_in", ""),
-            "feedback": st.session_state.get("mock_feedback", ""),
+            "transcript": st.session_state.get(_voice_key(idx), ""),
+            "answer":     st.session_state.get(_answer_key(idx), ""),
+            "polished":   st.session_state.get(_polished_key(idx), ""),
+            "feedback":   st.session_state.get(_feedback_key(idx), ""),
         }
 
-    def _load_q(idx):
+    def _ensure_q_keys(idx):
         state = st.session_state["q_state"].get(idx, {})
-        st.session_state["raw_voice_in"] = state.get("transcript", "")
-        st.session_state["mock_a_in"] = state.get("answer", "")
-        if state.get("polished"):
-            st.session_state["polished_preview"] = state["polished"]
-        else:
-            st.session_state.pop("polished_preview", None)
-        if state.get("feedback"):
-            st.session_state["mock_feedback"] = state["feedback"]
-        else:
-            st.session_state.pop("mock_feedback", None)
+        vk, ak, pk, fk = _voice_key(idx), _answer_key(idx), _polished_key(idx), _feedback_key(idx)
+        if vk not in st.session_state:
+            st.session_state[vk] = state.get("transcript", "")
+        if ak not in st.session_state:
+            st.session_state[ak] = state.get("answer", "")
+        if state.get("polished") and pk not in st.session_state:
+            st.session_state[pk] = state["polished"]
+        if state.get("feedback") and fk not in st.session_state:
+            st.session_state[fk] = state["feedback"]
 
     def _switch_to(new_idx):
-        """Switch to new Q — save current, load new, set ONLY mock_q_idx (not picker)."""
         _save_current_q()
         st.session_state["mock_q_idx"] = new_idx
-        _load_q(new_idx)
+        _ensure_q_keys(new_idx)
 
     # ---- Source picker ----
     with st.container(border=True):
@@ -1416,8 +1447,11 @@ elif page == "🎙️ Mock Interview":
     if st.session_state.get("mock_sig") and st.session_state["mock_sig"] != sig and \
        "mock_questions" in st.session_state:
         st.warning("⚠️ Settings changed — old questions hidden. Tap Generate.")
-        for k in ["mock_questions", "mock_q_list", "mock_q_idx", "q_state",
-                  "raw_voice_in", "mock_a_in", "mock_feedback", "polished_preview"]:
+        if "mock_q_list" in st.session_state:
+            for i in range(len(st.session_state["mock_q_list"])):
+                for kf in [_voice_key, _answer_key, _polished_key, _feedback_key]:
+                    st.session_state.pop(kf(i), None)
+        for k in ["mock_questions", "mock_q_list", "mock_q_idx", "q_state"]:
             st.session_state.pop(k, None)
 
     col_g1, col_g2, col_g3 = st.columns([2, 2, 1])
@@ -1433,8 +1467,11 @@ elif page == "🎙️ Mock Interview":
 
     if clear_clicked:
         st.session_state["mock_history"].pop(history_key, None)
-        for k in ["mock_questions", "mock_q_list", "mock_q_idx", "q_state",
-                  "raw_voice_in", "mock_a_in", "mock_feedback", "polished_preview"]:
+        if "mock_q_list" in st.session_state:
+            for i in range(len(st.session_state["mock_q_list"])):
+                for kf in [_voice_key, _answer_key, _polished_key, _feedback_key]:
+                    st.session_state.pop(kf(i), None)
+        for k in ["mock_questions", "mock_q_list", "mock_q_idx", "q_state"]:
             st.session_state.pop(k, None)
         st.success("✅ History cleared.")
         st.rerun()
@@ -1455,7 +1492,16 @@ elif page == "🎙️ Mock Interview":
             meta_domain = f"{category} → {mock_domain}"
 
         result = call_ai(prompt, temperature=1.0)
-        if result:
+
+        # Reject AI errors — don't try to parse them as questions
+        if result and _is_ai_error(result):
+            st.error(
+                "⚠️ AI service error — questions NOT generated. "
+                "Gemini may be overloaded. **Try again in 30 seconds**, or switch model in sidebar."
+            )
+            with st.expander("🔍 Raw error from AI"):
+                st.code(result[:1500])
+        elif result:
             st.session_state["mock_questions"] = result
             st.session_state["mock_sig"] = sig
             st.session_state["mock_meta"] = {
@@ -1464,16 +1510,19 @@ elif page == "🎙️ Mock Interview":
             }
             new_qs = _parse_questions(result)
             if new_qs:
+                if "mock_q_list" in st.session_state:
+                    for i in range(len(st.session_state["mock_q_list"])):
+                        for kf in [_voice_key, _answer_key, _polished_key, _feedback_key]:
+                            st.session_state.pop(kf(i), None)
                 st.session_state["mock_history"].setdefault(history_key, []).extend(new_qs)
                 st.session_state["mock_q_list"] = new_qs
                 st.session_state["mock_q_idx"] = 0
                 st.session_state["q_state"] = {}
-                for k in ["raw_voice_in", "mock_a_in", "mock_feedback", "polished_preview"]:
-                    st.session_state.pop(k, None)
+                _ensure_q_keys(0)
                 st.success(f"✅ Generated {len(new_qs)} questions (history: "
                            f"{len(st.session_state['mock_history'][history_key])})")
             else:
-                # Stricter fallback: ONLY lines that look like real questions
+                # Fallback parser
                 fallback_qs = []
                 INTRO_BLOCKERS = [
                     "here are", "here is", "below are", "below is",
@@ -1489,31 +1538,29 @@ elif page == "🎙️ Mock Interview":
                     if len(ln) < 20 or len(ln) > 500: continue
                     if ln.isupper(): continue
                     low = ln.lower()
-                    # Reject intro/preamble lines
                     if any(low.startswith(b) for b in INTRO_BLOCKERS): continue
-                    # Must look like a question OR have numbering
-                    has_question_mark = "?" in ln
-                    starts_with_num = bool(re.match(r"^[\d\W]*\d+", ln))
-                    if not (has_question_mark or starts_with_num): continue
-                    # Strip leading numbering noise
+                    has_q = "?" in ln
+                    starts_num = bool(re.match(r"^[\d\W]*\d+", ln))
+                    if not (has_q or starts_num): continue
                     cleaned_q = re.sub(r"^[\W_\d]*\d+\s*[:.\)\-\]]\s*", "", ln).strip()
                     cleaned_q = cleaned_q.strip("*").strip()
                     if len(cleaned_q) > 15:
                         fallback_qs.append(cleaned_q)
-
                 if len(fallback_qs) >= 3:
                     fallback_qs = fallback_qs[:int(n_q)]
+                    if "mock_q_list" in st.session_state:
+                        for i in range(len(st.session_state["mock_q_list"])):
+                            for kf in [_voice_key, _answer_key, _polished_key, _feedback_key]:
+                                st.session_state.pop(kf(i), None)
                     st.session_state["mock_history"].setdefault(history_key, []).extend(fallback_qs)
                     st.session_state["mock_q_list"] = fallback_qs
                     st.session_state["mock_q_idx"] = 0
                     st.session_state["q_state"] = {}
-                    st.info(f"ℹ️ Used fallback parser — got {len(fallback_qs)} questions. "
-                            "Format was unusual but questions are usable.")
+                    _ensure_q_keys(0)
+                    st.info(f"ℹ️ Used fallback parser — got {len(fallback_qs)} questions.")
                 else:
-                    st.warning("⚠️ AI returned unusual format. Tap 🧹 Clear and retry. "
-                               "If it keeps happening, switch to **Gemini 2.5 Flash** "
-                               "in sidebar (most reliable format).")
-                    with st.expander("🔍 Debug: see raw AI response (helps me fix the parser)"):
+                    st.warning("⚠️ AI returned unusual format. Tap 🧹 Clear and retry.")
+                    with st.expander("🔍 Debug: see raw AI response"):
                         st.code(result[:3000])
 
     # ---- Questions display ----
@@ -1535,8 +1582,8 @@ elif page == "🎙️ Mock Interview":
             f"({meta.get('domain','')} • {meta.get('level','')})</span><br>"
             f"<span style='font-size:14px;font-weight:600;'>"
             f"<span style='color:#4CAF50'>✅ {answered} evaluated</span> • "
-            f"<span style='color:#FF9800'>📝 {attempted} attempted</span> • "
-            f"<span style='color:#9E9E9E'>⭕ {pending} pending</span></span>",
+            f"<span style='color:#FF9800'>📝 {attempted} in progress</span> • "
+            f"<span style='color:#9E9E9E'>⭕ {pending} not started</span></span>",
             unsafe_allow_html=True)
 
         if st.button("💾 Save full set to My Library", use_container_width=True, key="lib_save_q"):
@@ -1545,36 +1592,32 @@ elif page == "🎙️ Mock Interview":
                         "content": st.session_state["mock_questions"]})
             st.success(f"✅ Saved! Library has {len(lib)} item(s).")
 
-        # ---- Question dropdown ----
+        # ---- Dropdown with status icons ----
         st.markdown("#### 🎯 Pick Question to Practice")
 
         def _q_label(i):
             q = q_list[i]
             s = st.session_state["q_state"].get(i, {})
-            if s.get("feedback"):
-                icon = "✅"
-            elif s.get("answer"):
-                icon = "📝"
-            else:
-                icon = "⭕"
+            if s.get("feedback"): icon = "✅"
+            elif s.get("answer"): icon = "📝"
+            else: icon = "⭕"
             return f"{icon} Q{i+1}: {q[:70]}{'...' if len(q) > 70 else ''}"
 
         current_idx = st.session_state.get("mock_q_idx", 0)
+        _ensure_q_keys(current_idx)
 
-        # IMPORTANT: Use index= for initial value, capture return for change detection
         picked_idx = st.selectbox(
             "Pick question",
             options=list(range(len(q_list))),
             format_func=_q_label,
             index=current_idx,
-            key=f"mock_q_picker_{current_idx}",  # dynamic key to force refresh
+            key=f"mock_q_picker_{current_idx}",
             label_visibility="collapsed"
         )
         if picked_idx != current_idx:
             _switch_to(picked_idx)
             st.rerun()
 
-        # Prev / Counter / Next
         nav_c1, nav_c2, nav_c3 = st.columns([1, 2, 1])
         with nav_c1:
             if st.button("⬅️ Previous", use_container_width=True, key="prev_q_btn",
@@ -1593,7 +1636,6 @@ elif page == "🎙️ Mock Interview":
                 _switch_to(current_idx + 1)
                 st.rerun()
 
-        # ---- Active question card ----
         active_q = q_list[current_idx]
         st.markdown(
             f"<div style='background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);"
@@ -1607,9 +1649,9 @@ elif page == "🎙️ Mock Interview":
         st.markdown("### 🎤 Answer with Voice or Type")
 
         st.info(
-            "🍎 **iPhone Safari**: Best with **English (India)** — speak Hinglish naturally. "
+            "🍎 **iPhone Safari**: Best with **English (India)**. "
             "**Android Chrome** supports Kannada/Tamil/Telugu directly. "
-            "✨ **AI Polish** converts ANY mixed speech to professional English!"
+            "✨ **AI Polish** converts ANY speech to professional English!"
         )
 
         vcol1, vcol2 = st.columns([3, 2])
@@ -1617,33 +1659,21 @@ elif page == "🎙️ Mock Interview":
             voice_lang = st.selectbox(
                 "🌐 Speech language",
                 ["en-IN — English (India) [RECOMMENDED]",
-                 "en-US — English (US)",
-                 "en-GB — English (UK)",
-                 "en-AU — English (Australia)",
-                 "hi-IN — Hindi",
-                 "kn-IN — Kannada (Android Chrome best)",
-                 "ta-IN — Tamil (Android Chrome best)",
-                 "te-IN — Telugu (Android Chrome best)",
-                 "ml-IN — Malayalam",
-                 "mr-IN — Marathi",
-                 "bn-IN — Bengali",
-                 "gu-IN — Gujarati",
-                 "pa-IN — Punjabi",
-                 "ur-IN — Urdu",
-                 "es-ES — Spanish",
-                 "fr-FR — French",
-                 "de-DE — German",
-                 "ja-JP — Japanese",
-                 "zh-CN — Chinese (Mandarin)",
-                 "ar-SA — Arabic"],
+                 "en-US — English (US)", "en-GB — English (UK)", "en-AU — English (Australia)",
+                 "hi-IN — Hindi", "kn-IN — Kannada (Android Chrome best)",
+                 "ta-IN — Tamil (Android Chrome best)", "te-IN — Telugu (Android Chrome best)",
+                 "ml-IN — Malayalam", "mr-IN — Marathi", "bn-IN — Bengali",
+                 "gu-IN — Gujarati", "pa-IN — Punjabi", "ur-IN — Urdu",
+                 "es-ES — Spanish", "fr-FR — French", "de-DE — German",
+                 "ja-JP — Japanese", "zh-CN — Chinese (Mandarin)", "ar-SA — Arabic"],
                 key="voice_lang_pick")
         with vcol2:
             st.markdown("<div style='padding-top:28px'></div>", unsafe_allow_html=True)
             st.caption("💡 Use mobile data, not office Wi-Fi")
 
         lang_code = voice_lang.split(" — ")[0]
+        voice_label = f"Recording transcript Q{current_idx+1} (auto-filled, editable)"
 
-        # ---- Voice recorder (just controls, no inner transcript) ----
         components.html(
             f"""
             <div style="font-family:system-ui,sans-serif;padding:14px;
@@ -1654,11 +1684,11 @@ elif page == "🎙️ Mock Interview":
                     background:linear-gradient(135deg,#4CAF50 0%,#2E7D32 100%);
                     color:white;border:none;border-radius:10px;cursor:pointer;
                     box-shadow:0 4px 12px rgba(76,175,80,0.4);">
-                    🎤 Tap to Start Recording
+                    🎤 Tap to Start Recording (Q{current_idx+1})
                 </button>
                 <div id="vstat" style="margin-top:10px;font-size:14px;color:#b0c4de;
                                       text-align:center;min-height:22px;font-weight:500;">
-                    Tap to record • Transcript fills box below
+                    Tap to record — old transcript will be cleared
                 </div>
                 <div style="margin-top:8px;display:flex;justify-content:space-between;
                             font-size:12px;color:#9aa5b8;">
@@ -1672,6 +1702,7 @@ elif page == "🎙️ Mock Interview":
                 const stat = document.getElementById('vstat');
                 const wcEl = document.getElementById('vwc');
                 const durEl = document.getElementById('vdur');
+                const TARGET_LABEL = "{voice_label}";
                 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
                 if (!SR) {{
                     btn.disabled = true;
@@ -1689,16 +1720,15 @@ elif page == "🎙️ Mock Interview":
                 let startTime = 0;
                 let timerInterval = null;
 
-                function findTranscriptBox() {{
+                function findBox() {{
                     try {{
                         const pDoc = window.parent.document;
-                        const tas = pDoc.querySelectorAll('textarea[aria-label="Recording transcript (auto-filled, editable)"]');
+                        const tas = pDoc.querySelectorAll('textarea[aria-label="' + TARGET_LABEL + '"]');
                         return tas.length > 0 ? tas[0] : null;
                     }} catch(e) {{ return null; }}
                 }}
-
                 function fillBox(text) {{
-                    const ta = findTranscriptBox();
+                    const ta = findBox();
                     if (!ta) return false;
                     try {{
                         const setter = Object.getOwnPropertyDescriptor(
@@ -1706,16 +1736,14 @@ elif page == "🎙️ Mock Interview":
                         ).set;
                         setter.call(ta, text);
                         ta.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                        ta.dispatchEvent(new Event('change', {{ bubbles: true }}));
                         return true;
                     }} catch(e) {{ return false; }}
                 }}
-
                 function doCopy(text) {{
                     if (navigator.clipboard && navigator.clipboard.writeText) {{
                         navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
-                    }} else {{
-                        fallbackCopy(text);
-                    }}
+                    }} else fallbackCopy(text);
                 }}
                 function fallbackCopy(text) {{
                     const ta = document.createElement('textarea');
@@ -1726,7 +1754,6 @@ elif page == "🎙️ Mock Interview":
                     try {{ document.execCommand('copy'); }} catch(e) {{}}
                     document.body.removeChild(ta);
                 }}
-
                 function updateStats() {{
                     const words = finalText.trim().split(/\\s+/).filter(w => w.length > 0).length;
                     wcEl.textContent = '📝 ' + words + ' words';
@@ -1737,10 +1764,10 @@ elif page == "🎙️ Mock Interview":
                         durEl.textContent = '⏱️ ' + m + ':' + (s < 10 ? '0' : '') + s;
                     }}
                 }}
-
                 btn.onclick = () => {{
                     if (!recording) {{
                         finalText = '';
+                        fillBox('');
                         try {{
                             rec.start();
                             recording = true;
@@ -1757,15 +1784,13 @@ elif page == "🎙️ Mock Interview":
                         rec.stop();
                         recording = false;
                         clearInterval(timerInterval);
-                        btn.textContent = '🎤 Tap to Start Recording';
+                        btn.textContent = '🎤 Tap to Start Recording (Q{current_idx+1})';
                         btn.style.background = 'linear-gradient(135deg,#4CAF50 0%,#2E7D32 100%)';
                         if (finalText.trim()) {{
                             doCopy(finalText.trim());
                             const filled = fillBox(finalText.trim());
-                            stat.textContent = filled ? '✅ Filled below — tap Polish!' : '✅ Copied — paste manually below';
-                        }} else {{
-                            stat.textContent = '⚠️ No speech detected';
-                        }}
+                            stat.textContent = filled ? '✅ Filled below — tap Polish!' : '✅ Copied — paste below';
+                        }} else stat.textContent = '⚠️ No speech detected';
                         updateStats();
                     }}
                 }};
@@ -1776,7 +1801,6 @@ elif page == "🎙️ Mock Interview":
                         if (event.results[i].isFinal) finalText += t + ' ';
                         else interim += t;
                     }}
-                    // Live update the box as user speaks
                     fillBox(finalText + interim);
                     updateStats();
                 }};
@@ -1784,13 +1808,11 @@ elif page == "🎙️ Mock Interview":
                     stat.textContent = '⚠️ Error: ' + e.error + ' — allow mic';
                     recording = false;
                     clearInterval(timerInterval);
-                    btn.textContent = '🎤 Tap to Start Recording';
+                    btn.textContent = '🎤 Tap to Start Recording (Q{current_idx+1})';
                     btn.style.background = 'linear-gradient(135deg,#4CAF50 0%,#2E7D32 100%)';
                 }};
                 rec.onend = () => {{
-                    if (recording) {{
-                        try {{ rec.start(); }} catch(e) {{}}
-                    }}
+                    if (recording) {{ try {{ rec.start(); }} catch(e) {{}} }}
                 }};
             }})();
             </script>
@@ -1798,15 +1820,12 @@ elif page == "🎙️ Mock Interview":
             height=200,
         )
 
-        # ---- FORM wrap: forces Streamlit to read CURRENT textarea value ----
-        # This fixes "Transcript box is empty" bug — st.form re-reads the DOM
-        # value when form_submit_button is clicked, even after JS injection.
-        with st.form("voice_polish_form", clear_on_submit=False):
+        # FORM wrap with PER-QUESTION key
+        with st.form(f"voice_polish_form_{current_idx}", clear_on_submit=False):
             st.text_area(
-                "Recording transcript (auto-filled, editable)",
-                height=180, key="raw_voice_in",
-                placeholder="Your voice transcript appears here LIVE while you speak. "
-                            "Edit if needed, then tap Polish or Use Raw."
+                voice_label,
+                height=180, key=_voice_key(current_idx),
+                placeholder="Your voice transcript appears here LIVE while you speak."
             )
             st.caption("👆 If text isn't here after speaking, long-press box → Paste (clipboard backup).")
 
@@ -1818,10 +1837,9 @@ elif page == "🎙️ Mock Interview":
                 use_raw_clicked = st.form_submit_button(
                     "⚡ Use Raw Speech", use_container_width=True)
 
-        # After form submit, Streamlit has synced the DOM value to session_state
-        current_transcript = st.session_state.get("raw_voice_in", "").strip()
+        current_transcript = st.session_state.get(_voice_key(current_idx), "").strip()
 
-        if polish_clicked:   
+        if polish_clicked:
             if not current_transcript:
                 st.warning("⚠️ Transcript box is empty. Speak or type first.")
             else:
@@ -1839,69 +1857,85 @@ elif page == "🎙️ Mock Interview":
                 )
                 with st.spinner("✨ AI polishing your answer..."):
                     polished = call_ai(polish_prompt, temperature=0.4)
-                if polished:
-                    st.session_state["polished_preview"] = polished.strip()
+                if polished and not _is_ai_error(polished):
+                    st.session_state[_polished_key(current_idx)] = polished.strip()
                     st.rerun()
+                elif polished:
+                    st.error(
+                        "⚠️ AI service error during Polish — try again in 30 seconds, "
+                        "or use **⚡ Use Raw Speech** to skip Polish for now."
+                    )
+                    with st.expander("🔍 Raw error from AI"):
+                        st.code(polished[:1500])
 
         if use_raw_clicked:
             if not current_transcript:
                 st.warning("⚠️ Transcript box is empty. Speak or type first.")
             else:
-                st.session_state["mock_a_in"] = current_transcript
-                st.session_state.pop("polished_preview", None)
+                st.session_state[_answer_key(current_idx)] = current_transcript
+                st.session_state.pop(_polished_key(current_idx), None)
                 _save_current_q()
                 st.success("✅ Raw transcript set as answer.")
                 st.rerun()
 
-        # ---- Polished preview ----
-        if "polished_preview" in st.session_state:
+        # Polished preview
+        if _polished_key(current_idx) in st.session_state:
             st.markdown("---")
             st.markdown("##### ✨ Polished Version (review then use)")
             st.markdown(
                 f"<div style='background:#E8F5E9;padding:14px;border-radius:8px;"
                 f"border-left:4px solid #4CAF50;color:#1a1a2e;font-size:15px;line-height:1.6;'>"
-                f"{st.session_state['polished_preview']}</div>",
+                f"{st.session_state[_polished_key(current_idx)]}</div>",
                 unsafe_allow_html=True)
             pp1, pp2, pp3 = st.columns(3)
             with pp1:
                 if st.button("✅ Use This Polished", use_container_width=True,
                              type="primary", key="use_polished_btn"):
-                    st.session_state["mock_a_in"] = st.session_state["polished_preview"]
-                    st.session_state.pop("polished_preview", None)
+                    st.session_state[_answer_key(current_idx)] = st.session_state[_polished_key(current_idx)]
+                    st.session_state.pop(_polished_key(current_idx), None)
                     _save_current_q()
                     st.rerun()
             with pp2:
                 if st.button("✏️ Edit First", use_container_width=True, key="edit_polished_btn"):
-                    st.session_state["mock_a_in"] = st.session_state["polished_preview"]
-                    st.session_state.pop("polished_preview", None)
+                    st.session_state[_answer_key(current_idx)] = st.session_state[_polished_key(current_idx)]
+                    st.session_state.pop(_polished_key(current_idx), None)
                     _save_current_q()
                     st.rerun()
             with pp3:
                 if st.button("🗑️ Discard", use_container_width=True, key="discard_polished_btn"):
-                    st.session_state.pop("polished_preview", None)
+                    st.session_state.pop(_polished_key(current_idx), None)
                     st.rerun()
 
         st.markdown("---")
         st.markdown("##### 📝 Your Answer (auto-filled, editable)")
-        st.text_area("Your Answer", height=200, key="mock_a_in",
+        st.text_area("Your Answer", height=200, key=_answer_key(current_idx),
                      label_visibility="collapsed")
 
         if st.button("📊 Evaluate My Answer", type="primary",
                      use_container_width=True, key="eval_btn"):
-            current_answer = st.session_state.get("mock_a_in", "").strip()
+            current_answer = st.session_state.get(_answer_key(current_idx), "").strip()
             if not current_answer:
                 st.warning("Please provide an answer first.")
             else:
                 result = call_ai(p_mock_eval(active_q, current_answer, exp_level))
-                if result:
-                    st.session_state["mock_feedback"] = result
+                if result and not _is_ai_error(result):
+                    st.session_state[_feedback_key(current_idx)] = result
                     _save_current_q()
+                elif result:
+                    st.error(
+                        "⚠️ AI service error — your answer was NOT evaluated. "
+                        "This usually means Gemini is overloaded. "
+                        "**Try again in 30 seconds**, or switch model in sidebar "
+                        "(e.g. Gemini 2.5 Flash-Lite is often less busy)."
+                    )
+                    with st.expander("🔍 Raw error from AI"):
+                        st.code(result[:1500])
 
-        if "mock_feedback" in st.session_state:
+        if _feedback_key(current_idx) in st.session_state:
             st.markdown("### 📊 AI Feedback")
-            st.text_area("Feedback", st.session_state["mock_feedback"], height=400,
-                         key="mock_fb_out", label_visibility="collapsed")
-            download_buttons(st.session_state["mock_feedback"], region,
+            st.text_area("Feedback", st.session_state[_feedback_key(current_idx)], height=400,
+                         key=f"mock_fb_out_{current_idx}", label_visibility="collapsed")
+            download_buttons(st.session_state[_feedback_key(current_idx)], region,
                              "Mock_Feedback", name_override="Candidate")
 
             fb_c1, fb_c2, fb_c3 = st.columns(3)
@@ -1912,7 +1946,7 @@ elif page == "🎙️ Mock Interview":
                         "type": "feedback",
                         "meta": {**(st.session_state.get("mock_meta") or {}),
                                  "question": active_q},
-                        "content": st.session_state["mock_feedback"],
+                        "content": st.session_state[_feedback_key(current_idx)],
                     })
                     st.success(f"✅ Saved! Library has {len(lib)} item(s).")
             with fb_c2:
@@ -1923,9 +1957,10 @@ elif page == "🎙️ Mock Interview":
                     st.rerun()
             with fb_c3:
                 if st.button("🔁 Try Again", use_container_width=True, key="retry_btn"):
-                    for k in ["raw_voice_in", "mock_a_in", "mock_feedback", "polished_preview"]:
-                        st.session_state.pop(k, None)
+                    for kf in [_voice_key, _answer_key, _polished_key, _feedback_key]:
+                        st.session_state.pop(kf(current_idx), None)
                     st.session_state["q_state"].pop(current_idx, None)
+                    _ensure_q_keys(current_idx)
                     st.rerun()
 
 # ============================================================
