@@ -767,6 +767,166 @@ Languages:
 Name:
 Year:
 """
+
+
+# ============================================================
+# BACKGROUND TASK FRAMEWORK — tasks survive page navigation!
+# ============================================================
+import threading
+
+def _bg_init():
+    """Ensure bg_tasks dict exists in session_state."""
+    if "bg_tasks" not in st.session_state:
+        st.session_state["bg_tasks"] = {}
+
+def _bg_submit(task_id, label, page, run_fn, on_done_key=None):
+    """
+    Submit a background AI task.
+    - task_id: unique key (e.g. "gen_cv_abc123")
+    - label: user-friendly name shown in sidebar
+    - page: which page it belongs to (for context)
+    - run_fn: a callable that returns the AI result (str)
+    - on_done_key: session_state key to write result to when done
+    """
+    _bg_init()
+    # Don't resubmit if already running
+    if task_id in st.session_state["bg_tasks"] and \
+       st.session_state["bg_tasks"][task_id]["status"] == "running":
+        return False
+
+    st.session_state["bg_tasks"][task_id] = {
+        "status": "running",
+        "page": page,
+        "label": label,
+        "result": None,
+        "error": None,
+        "started": time.time(),
+        "elapsed": 0.0,
+        "on_done_key": on_done_key,
+    }
+
+    # Capture session_state reference for the thread
+    task_dict = st.session_state["bg_tasks"][task_id]
+
+    def _runner():
+        try:
+            result = run_fn()
+            task_dict["result"] = result
+            task_dict["status"] = "error" if _is_ai_error(result or "") else "done"
+            task_dict["elapsed"] = time.time() - task_dict["started"]
+        except Exception as e:
+            task_dict["error"] = str(e)
+            task_dict["status"] = "error"
+            task_dict["elapsed"] = time.time() - task_dict["started"]
+
+    t = threading.Thread(target=_runner, daemon=True)
+    # Add script context so thread can access session_state safely
+    try:
+        from streamlit.runtime.scriptrunner import add_script_run_ctx
+        add_script_run_ctx(t)
+    except Exception:
+        pass
+    t.start()
+    return True
+
+def _bg_poll_status(task_id):
+    """Get status of a task. Returns dict with status/result/elapsed."""
+    _bg_init()
+    t = st.session_state["bg_tasks"].get(task_id)
+    if not t:
+        return None
+    # Update elapsed if still running
+    if t["status"] == "running":
+        t["elapsed"] = time.time() - t["started"]
+    return t
+
+def _bg_consume(task_id):
+    """
+    If task is done, apply result to target session_state key and clean up.
+    Returns the result string (or None if not ready).
+    """
+    _bg_init()
+    t = st.session_state["bg_tasks"].get(task_id)
+    if not t or t["status"] == "running":
+        return None
+    result = t.get("result")
+    on_done_key = t.get("on_done_key")
+    if t["status"] == "done" and on_done_key and result:
+        st.session_state[on_done_key] = result
+    # Keep the task record so page can show status; caller can pop when displayed
+    return result
+
+def _bg_clear(task_id):
+    """Remove a task record entirely."""
+    _bg_init()
+    st.session_state["bg_tasks"].pop(task_id, None)
+
+def _bg_running_count():
+    """Count of tasks currently running."""
+    _bg_init()
+    return sum(1 for t in st.session_state["bg_tasks"].values()
+               if t["status"] == "running")
+
+def _bg_active_tasks():
+    """All tasks that haven't been consumed yet (running or unshown done/error)."""
+    _bg_init()
+    return {tid: t for tid, t in st.session_state["bg_tasks"].items()}
+
+def _bg_render_badge():
+    """Render the sidebar badge showing running tasks."""
+    _bg_init()
+    running = _bg_running_count()
+    done_unseen = sum(1 for t in st.session_state["bg_tasks"].values()
+                      if t["status"] in ("done", "error") and not t.get("seen", False))
+    if running == 0 and done_unseen == 0:
+        return
+    with st.sidebar:
+        st.markdown("---")
+        st.markdown("### 🔄 Background Tasks")
+        for tid, t in list(st.session_state["bg_tasks"].items()):
+            page_name = t.get("page", "?")
+            label = t.get("label", "Task")
+            status = t["status"]
+            elapsed = t.get("elapsed", 0)
+            if status == "running":
+                st.markdown(
+                    f"<div style='padding:8px;background:#FFF3E0;border-left:4px solid #FF9800;"
+                    f"border-radius:4px;margin:4px 0;font-size:12px;'>"
+                    f"⏳ <b>{label}</b><br>"
+                    f"<span style='font-size:11px;color:#666;'>on {page_name} • {elapsed:.1f}s</span></div>",
+                    unsafe_allow_html=True)
+            elif status == "done":
+                if not t.get("seen"):
+                    st.markdown(
+                        f"<div style='padding:8px;background:#E8F5E9;border-left:4px solid #4CAF50;"
+                        f"border-radius:4px;margin:4px 0;font-size:12px;'>"
+                        f"✅ <b>{label}</b><br>"
+                        f"<span style='font-size:11px;color:#666;'>Done in {elapsed:.1f}s • go to {page_name}</span></div>",
+                        unsafe_allow_html=True)
+            elif status == "error":
+                if not t.get("seen"):
+                    st.markdown(
+                        f"<div style='padding:8px;background:#FFEBEE;border-left:4px solid #F44336;"
+                        f"border-radius:4px;margin:4px 0;font-size:12px;'>"
+                        f"❌ <b>{label}</b><br>"
+                        f"<span style='font-size:11px;color:#666;'>Failed on {page_name}</span></div>",
+                        unsafe_allow_html=True)
+
+def _bg_autorefresh():
+    """Trigger auto-rerun every 2s if any task is running."""
+    if _bg_running_count() > 0:
+        # Small JS component to force a rerun every 2 seconds
+        components.html(
+            """
+            <script>
+            setTimeout(() => {
+                window.parent.location.reload();
+            }, 2500);
+            </script>
+            """,
+            height=0,
+        )
+        
 def _is_ai_error(text):
     """Detect if AI response is actually an error message, not real content."""
     if not text or not text.strip():
@@ -1014,6 +1174,11 @@ with st.sidebar:
         st.rerun()
     page = st.session_state.page
 
+    # Render background task badge in sidebar (visible from any page)
+    _bg_render_badge()
+
+# Auto-refresh page while background tasks are running
+_bg_autorefresh()
     st.markdown("---")
     st.markdown("**🤖 AI Provider**")
     provider = st.radio("Provider",
