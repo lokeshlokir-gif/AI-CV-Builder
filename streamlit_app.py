@@ -1111,51 +1111,59 @@ def region_note(stored_region):
 # ============================================================
 if page == "🏠 Home":
     st.markdown(
-        '<div class="hero"><h1>📄 AI CV Builder</h1>'
-        '<p>Gemini (FREE) + OpenAI + Claude • Region-aware • PDF/Word Export • 130+ Mock Interview Domains • Voice Input + AI Polish<br>'
-        'Anti-hallucination: AI only uses YOUR data.</p></div>',
+        "<div class='hero'>"
+        "<h1>📄 AI CV Builder</h1>"
+        "<p>Gemini (FREE) + OpenAI + Claude • Region-aware • PDF/Word Export"
+        " • 130+ Mock Interview Domains • Voice Input + AI Polish<br>"
+        "Anti-hallucination: AI only uses YOUR data.</p>"
+        "</div>",
         unsafe_allow_html=True)
 
     if not api_key:
-        st.markdown("""
-        <div class="onboard">
-            <h2>🆓 First time? Get a FREE Gemini API key in 30 seconds:</h2>
-            <p>
-                <b>Step 1:</b> Click → istudio.google.com/apikey" target="_blank">https://aistudio.google.com/apikey</a><br>
-                <b>Step 2:</b> Sign in with your Google account<br>
-                <b>Step 3:</b> Click 'Create API Key' → copy it → paste in sidebar<br>
-                <br>
-                <i>It's 100% free with generous daily quota.</i>
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            "<div class='onboard'>"
+            "<h2>🆓 First time? Get a FREE Gemini API key in 30 seconds:</h2>"
+            "<p><b>Step 1:</b> Open "
+            "<a href='https://aistudio.google.com/apikey' target='_blank'>"
+            "https://aistudio.google.com/apikey</a><br>"
+            "<b>Step 2:</b> Sign in with your Google account<br>"
+            "<b>Step 3:</b> Click 'Create API Key' → copy it → paste in sidebar<br>"
+            "<br><i>100% free with generous daily quota.</i></p>"
+            "</div>",
+            unsafe_allow_html=True)
 
     cards = [
-        ("📝 Generate CV",     "Create a region-formatted CV from any JD.",         "bg-green",  "generate"),
-        ("🔍 CV vs JD",        "Compare CV vs JD. Keywords, gaps, cover letter.",   "bg-yellow", "compare"),
-        ("📊 CV Analysis",     "AI scores ATS compliance. Improve & export.",       "bg-blue",   "analysis"),
-        ("📑 Multi-JD Compare","Compare CV against multiple JDs at once.",          "bg-purple", "multi"),
-        ("🎤 Interview Prep",  "15-20 questions + STAR frameworks from any JD.",    "bg-green",  "prep"),
-        ("🎙️ Mock Interview", "Voice + AI polish + 130+ domains.",                  "bg-yellow", "mock"),
-        ("🧑‍💼 Coaching",     "Career advice on 10+ topics.",                       "bg-blue",   "coach"),
-        ("📚 My Library",      "Save question sets & feedback. Export as JSON.",    "bg-green",  "library"),
-        ("⚙️ Settings",        "Providers, regions, mobile tips.",                  "bg-purple", "settings"),
+        ("📝 Generate CV",      "Create a region-formatted CV from any JD.",       "bg-green",  "generate"),
+        ("🔍 CV vs JD",         "Compare CV vs JD. Keywords, gaps, cover letter.", "bg-yellow", "compare"),
+        ("📊 CV Analysis",      "AI scores ATS compliance. Improve & export.",     "bg-blue",   "analysis"),
+        ("📑 Multi-JD Compare", "Compare CV against multiple JDs at once.",        "bg-purple", "multi"),
+        ("🎤 Interview Prep",   "15-20 questions + STAR frameworks from any JD.",  "bg-green",  "prep"),
+        ("🎙️ Mock Interview",  "Voice + AI polish + 130+ domains.",                "bg-yellow", "mock"),
+        ("🧑‍💼 Coaching",      "Career advice on 10+ topics.",                    "bg-blue",   "coach"),
+        ("📚 My Library",       "Save question sets & feedback.",                  "bg-green",  "library"),
+        ("⚙️ Settings",         "Providers, regions, mobile tips.",                "bg-purple", "settings"),
     ]
     cols = st.columns(2, gap="medium")
     for i, (title, desc, css_class, slug) in enumerate(cards):
         with cols[i % 2]:
-            st.markdown(
-                f'?nav={slug}" style="text-decoration:none;color:inherit;">'
-                f'<div class="home-card {css_class}">'
-                f'<h3>{title}</h3><p>{desc}</p>'
-                f'<div class="tap-hint">👉 Tap to open</div>'
-                f'</div></a>',
-                unsafe_allow_html=True)
+            card_html = (
+                "<a href='?nav=" + slug + "' style='text-decoration:none;color:inherit;'>"
+                "<div class='home-card " + css_class + "'>"
+                "<h3>" + title + "</h3>"
+                "<p>" + desc + "</p>"
+                "<div class='tap-hint'>👉 Tap to open</div>"
+                "</div></a>"
+            )
+            st.markdown(card_html, unsafe_allow_html=True)
 
     st.markdown(
-        '<div class="stats-bar">🌍 <b>14 Regions</b> &nbsp;•&nbsp; 🤖 <b>Gemini + OpenAI + Claude</b> '
-        '&nbsp;•&nbsp; 🎤 <b>Voice + AI Polish</b> &nbsp;•&nbsp; 📑 <b>PDF / Word</b> '
-        '&nbsp;•&nbsp; 🎙️ <b>130+ Mock Domains</b></div>', unsafe_allow_html=True)
+        "<div class='stats-bar'>"
+        "🌍 <b>14 Regions</b> &nbsp;•&nbsp; 🤖 <b>Gemini + OpenAI + Claude</b>"
+        " &nbsp;•&nbsp; 🎤 <b>Voice + AI Polish</b>"
+        " &nbsp;•&nbsp; 📑 <b>PDF / Word</b>"
+        " &nbsp;•&nbsp; 🎙️ <b>130+ Mock Domains</b>"
+        "</div>",
+        unsafe_allow_html=True)
     st.markdown("---")
     st.info("💡 **Currently set to:** " + region + " — change in the sidebar anytime.")
 
