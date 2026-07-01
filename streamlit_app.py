@@ -1174,11 +1174,6 @@ with st.sidebar:
         st.rerun()
     page = st.session_state.page
 
-    # Render background task badge in sidebar (visible from any page)
-    _bg_render_badge()
-
-# Auto-refresh page while background tasks are running
-_bg_autorefresh()
     st.markdown("---")
     st.markdown("**🤖 AI Provider**")
     provider = st.radio("Provider",
@@ -1211,6 +1206,12 @@ _bg_autorefresh()
     region_name = region.split(" ", 1)[1] if " " in region else region
     st.caption("📍 **" + region_name + "** format will be used")
     st.caption("SSL: " + SSL_M)
+
+    # Render background task badge at bottom of sidebar (visible from any page)
+    _bg_render_badge()
+
+# Auto-refresh page while background tasks are running
+_bg_autorefresh()
 
 # ============================================================
 # HELPERS
