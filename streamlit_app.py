@@ -862,10 +862,33 @@ st.set_page_config(page_title="AI CV Builder", page_icon="📄",
 
 st.markdown("""
 <style>
+    /* Make the anchor tag fill the whole card area */
+    .home-card-link {
+        display: block;
+        text-decoration: none;
+        color: inherit;
+        cursor: pointer;
+    }
+    .home-card-link:hover {
+        text-decoration: none;
+    }
     .home-card {
         padding: 24px; border-radius: 10px; margin-bottom: 12px;
-        min-height: 110px; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s;
+        min-height: 110px; cursor: pointer;
+        transition: transform 0.15s, box-shadow 0.15s;
         border: 2px solid transparent;
+        display: block;
+        width: 100%;
+    }
+    .home-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+    }
+    .home-card:active {
+        transform: translateY(-1px) scale(0.98);
+    }
+    .home-card * {
+        pointer-events: none;
     }
     .home-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.15); }
     .home-card h3 { margin-top: 0; color: #1a1a2e; }
@@ -1147,14 +1170,14 @@ if page == "🏠 Home":
     for i, (title, desc, css_class, slug) in enumerate(cards):
         with cols[i % 2]:
             card_html = (
-                "<a href='?nav=" + slug + "' style='text-decoration:none;color:inherit;'>"
+                "?nav=" + slug + "'>"
                 "<div class='home-card " + css_class + "'>"
                 "<h3>" + title + "</h3>"
                 "<p>" + desc + "</p>"
                 "</div></a>"
             )
             st.markdown(card_html, unsafe_allow_html=True)
-
+            
     st.markdown(
         "<div class='stats-bar'>"
         "🌍 <b>14 Regions</b> &nbsp;•&nbsp; 🤖 <b>Gemini + OpenAI + Claude</b>"
