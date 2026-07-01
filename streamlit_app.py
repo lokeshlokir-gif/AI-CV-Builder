@@ -1151,7 +1151,6 @@ if page == "🏠 Home":
                 "<div class='home-card " + css_class + "'>"
                 "<h3>" + title + "</h3>"
                 "<p>" + desc + "</p>"
-                "<div class='tap-hint'>👉 Tap to open</div>"
                 "</div></a>"
             )
             st.markdown(card_html, unsafe_allow_html=True)
