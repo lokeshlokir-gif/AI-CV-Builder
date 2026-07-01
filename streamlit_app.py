@@ -862,141 +862,46 @@ st.set_page_config(page_title="AI CV Builder", page_icon="📄",
 
 st.markdown("""
 <style>
-    /* ============================================================
-       HOME CARDS — fully clickable, smooth animations
-       ============================================================ */
-
-    /* Make the anchor tag fill the whole card area */
-    .home-card-link {
-        display: block;
-        text-decoration: none;
-        color: inherit;
-        cursor: pointer;
-    }
-    .home-card-link:hover,
-    .home-card-link:focus,
-    .home-card-link:visited {
-        text-decoration: none;
-        color: inherit;
-    }
-
-    /* The visible card box */
     .home-card {
-        padding: 24px;
-        border-radius: 10px;
-        margin-bottom: 12px;
-        min-height: 110px;
-        cursor: pointer;
-        transition: transform 0.15s ease, box-shadow 0.15s ease;
+        padding: 24px; border-radius: 10px; margin-bottom: 12px;
+        min-height: 110px; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s;
         border: 2px solid transparent;
-        display: block;
-        width: 100%;
     }
-
-    /* Hover effect — subtle lift + shadow */
-    .home-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 8px 20px rgba(0,0,0,0.15);
-    }
-
-    /* Tap feedback — brief press-down animation */
-    .home-card:active {
-        transform: translateY(-1px) scale(0.98);
-    }
-
-    /* Card text styling */
+    .home-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.15); }
     .home-card h3 { margin-top: 0; color: #1a1a2e; }
     .home-card p  { color: #444; margin: 0; }
-
-    /* Card background colors */
+    .home-card .tap-hint { font-size: 12px; color: #1976d2; margin-top: 8px; font-weight: 600; }
     .bg-green  { background:#d4edda; border-color:#c3e6cb; }
     .bg-yellow { background:#fff3cd; border-color:#ffeaa7; }
     .bg-blue   { background:#d1ecf1; border-color:#bee5eb; }
     .bg-purple { background:#e8daef; border-color:#d7bce8; }
-
-    /* ============================================================
-       HERO BANNER (dark gradient on Home page top)
-       ============================================================ */
-
-    .hero {
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-        color: white;
-        padding: 30px;
-        border-radius: 8px;
-        margin-bottom: 20px;
-    }
-    .hero h1 { color: white; margin: 0 0 10px 0; }
-    .hero p  { color: #b0c4de; margin: 0; }
-
-    /* Stats bar under cards */
-    .stats-bar {
-        background: #e8eaf6;
-        padding: 12px;
-        border-radius: 8px;
-        margin-top: 12px;
-        text-align: center;
-    }
-
-    /* Region change warning */
-    .region-warning {
-        background: #fff3cd;
-        padding: 10px;
-        border-radius: 6px;
-        border-left: 4px solid #ff9800;
-        margin-bottom: 10px;
-        font-size: 14px;
-    }
-
-    /* Download button bolder */
+    .hero { background:linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color:white; padding:30px; border-radius:8px; margin-bottom:20px; }
+    .hero h1 { color:white; margin:0 0 10px 0; }
+    .hero p { color:#b0c4de; margin:0; }
+    .stats-bar { background:#e8eaf6; padding:12px; border-radius:8px; margin-top:12px; text-align:center; }
+    .region-warning { background:#fff3cd; padding:10px; border-radius:6px; border-left:4px solid #ff9800; margin-bottom:10px; font-size:14px; }
     div[data-testid="stDownloadButton"] button { font-weight: 600; }
-
-    /* ============================================================
-       ONBOARDING BANNER (green, first-time users)
-       ============================================================ */
-
     .onboard {
         background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
-        color: white;
-        padding: 24px;
-        border-radius: 12px;
-        margin-bottom: 20px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        color: white; padding: 24px; border-radius: 12px;
+        margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
     .onboard h2 { color: white; margin: 0 0 12px 0; font-size: 22px; }
     .onboard p  { color: #E8F5E9; font-size: 16px; line-height: 1.9; margin: 0; }
     .onboard a  { color: #FFEB3B; font-weight: bold; text-decoration: underline; }
-
-    /* ============================================================
-       API KEY MISSING BANNER (orange)
-       ============================================================ */
-
     .nokey-banner {
         background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);
-        color: white;
-        padding: 18px;
-        border-radius: 10px;
-        margin-bottom: 16px;
+        color: white; padding: 18px; border-radius: 10px; margin-bottom: 16px;
     }
     .nokey-banner h3 { color: white; margin: 0 0 8px 0; }
     .nokey-banner p  { color: #FFF3E0; margin: 0; line-height: 1.7; }
-
-    /* ============================================================
-       MOBILE SIDEBAR — keep close/open arrow always visible
-       ============================================================ */
-
     section[data-testid="stSidebar"] button[kind="header"] {
-        position: fixed !important;
-        top: 10px !important;
-        z-index: 999999 !important;
+        position: fixed !important; top: 10px !important; z-index: 999999 !important;
     }
     [data-testid="collapsedControl"] {
-        position: fixed !important;
-        top: 10px !important;
-        left: 10px !important;
-        z-index: 999999 !important;
-        background: rgba(255,255,255,0.95) !important;
-        border-radius: 6px !important;
-        padding: 4px !important;
+        position: fixed !important; top: 10px !important; left: 10px !important;
+        z-index: 999999 !important; background: rgba(255,255,255,0.95) !important;
+        border-radius: 6px !important; padding: 4px !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -1242,14 +1147,15 @@ if page == "🏠 Home":
     for i, (title, desc, css_class, slug) in enumerate(cards):
         with cols[i % 2]:
             card_html = (
-                "?nav=" + slug + "'>"
+                "<a href='?nav=" + slug + "' style='text-decoration:none;color:inherit;'>"
                 "<div class='home-card " + css_class + "'>"
                 "<h3>" + title + "</h3>"
                 "<p>" + desc + "</p>"
+                "<div class='tap-hint'>👉 Tap to open</div>"
                 "</div></a>"
             )
             st.markdown(card_html, unsafe_allow_html=True)
-            
+
     st.markdown(
         "<div class='stats-bar'>"
         "🌍 <b>14 Regions</b> &nbsp;•&nbsp; 🤖 <b>Gemini + OpenAI + Claude</b>"
