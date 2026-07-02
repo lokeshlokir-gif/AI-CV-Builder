@@ -400,6 +400,11 @@ def ai_call(pr, key, prov="gemini", model="gemini-2.5-flash", temperature=0.7):
 # ============================================================
 def read_file(uploaded):
     if uploaded is None: return ""
+    # CRITICAL: reset to start so re-reads after Streamlit reruns work
+    try:
+        uploaded.seek(0)
+    except Exception:
+        pass
     name = uploaded.name.lower()
     if name.endswith(".pdf"):
         if not HAS_PDF: return "Install pypdf"
@@ -524,17 +529,30 @@ def make_pdf(text, region):
     ri = RD_.get(region, {})
     cp = ri.get("cp", (0, 51, 102))
     has_photo = ri.get("pn", False)
+    # Register Japanese CJK font when Japan region — fixes black boxes in Japanese chars
+    font_normal = "Helvetica"
+    font_bold = "Helvetica-Bold"
+    if ri.get("code") == "JP":
+        try:
+            from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+            from reportlab.pdfbase import pdfmetrics
+            pdfmetrics.registerFont(UnicodeCIDFont("HeiseiMin-W3"))
+            pdfmetrics.registerFont(UnicodeCIDFont("HeiseiKakuGo-W5"))
+            font_normal = "HeiseiMin-W3"
+            font_bold = "HeiseiKakuGo-W5"
+        except Exception:
+            pass
     color_hex = "#%02X%02X%02X" % cp
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=1.5*cm, bottomMargin=1.5*cm,
                             leftMargin=2*cm, rightMargin=2*cm)
     ss = getSampleStyleSheet()
-    ss.add(ParagraphStyle("CVName", fontSize=20, leading=24, alignment=TA_CENTER, spaceAfter=6, textColor=color_hex, fontName="Helvetica-Bold"))
-    ss.add(ParagraphStyle("CVNameL", fontSize=20, leading=24, alignment=TA_LEFT, spaceAfter=6, textColor=color_hex, fontName="Helvetica-Bold"))
-    ss.add(ParagraphStyle("CVHead", fontSize=12, leading=14, spaceBefore=12, spaceAfter=4, textColor=color_hex, fontName="Helvetica-Bold"))
-    ss.add(ParagraphStyle("CVBody", fontSize=10, leading=13, spaceAfter=2, fontName="Helvetica"))
-    ss.add(ParagraphStyle("CVBullet", fontSize=10, leading=13, leftIndent=20, spaceAfter=1, fontName="Helvetica"))
-    ss.add(ParagraphStyle("CVPhoto", fontSize=9, leading=12, alignment=TA_CENTER, fontName="Helvetica"))
+    ss.add(ParagraphStyle("CVName", fontSize=20, leading=24, alignment=TA_CENTER, spaceAfter=6, textColor=color_hex, fontName=font_bold))
+    ss.add(ParagraphStyle("CVNameL", fontSize=20, leading=24, alignment=TA_LEFT, spaceAfter=6, textColor=color_hex, fontName=font_bold))
+    ss.add(ParagraphStyle("CVHead", fontSize=12, leading=14, spaceBefore=12, spaceAfter=4, textColor=color_hex, fontName=font_bold))
+    ss.add(ParagraphStyle("CVBody", fontSize=10, leading=13, spaceAfter=2, fontName=font_normal))
+    ss.add(ParagraphStyle("CVBullet", fontSize=10, leading=13, leftIndent=20, spaceAfter=1, fontName=font_normal))
+    ss.add(ParagraphStyle("CVPhoto", fontSize=9, leading=12, alignment=TA_CENTER, fontName=font_normal))
     lines = [l for l in text.split("\n") if l.strip()]
     SK = ["SUMMARY", "SKILL", "EXPERIENCE", "EDUCATION", "CERTIF", "PROFILE",
           "OBJECTIVE", "PERSONAL", "CAREER", "LANGUAGES", "ADDITIONAL",
@@ -602,7 +620,19 @@ def make_pdf(text, region):
 # AI PROMPTS
 # ============================================================
 NO_PRE = "RULES: 1) NO FABRICATION 2) Missing=[Not provided] 3) EXPERIENCE=sum jobs(exclude gaps) 4) Only stated numbers 5) Only stated skills 6) Name first, no preamble 7) ACTUAL years 8) Enhance wording only 9) Strictly follow region format"
-
+def _years_hint():
+    """Injects current date + explicit year-calc rules into prompts."""
+    return (
+        "\n\nEXPERIENCE-YEAR CALCULATION (mandatory):\n"
+        "- Current date reference: " + datetime.now().strftime("%B %Y") + "\n"
+        "- 'Present' / 'Current' = the current date above.\n"
+        "- Compute each job's months from start to end (inclusive of start month, exclusive of end month for currently-running jobs use current date).\n"
+        "- Sum ALL job durations in months.\n"
+        "- EXCLUDE unemployment gaps.\n"
+        "- Convert total to years (divide by 12). If the fractional part is >= 0.3, round UP; else round DOWN. Report as 'X+ years'.\n"
+        "- Example: 122 months = 10.17 years -> report as '10+ years'. 118 months = 9.83 years -> report as '10+ years' (round up).\n"
+        "- Match the candidate's stated years IF within 1 year of your calculation. Do NOT undercount.\n"
+    )
 def _rb(rn, ri):
     return ("TARGET REGION: " + rn + "\n" +
             "DOCUMENT TYPE: " + ri["term"] + "\n" +
@@ -617,17 +647,30 @@ def _rb(rn, ri):
             "IMPORTANT: Format CV strictly for " + rn + ". If region requires photo, include [PHOTO PLACEHOLDER] at top. Use exact sections listed above. Do NOT use emojis, country flags, or special box-drawing characters in the output.")
 
 def p_gen(jd, info, rn, ri):
-    return ("You are an expert CV writer specifically for " + rn + ".\n" + _rb(rn, ri) + "\n" + NO_PRE +
+    return ("You are an expert CV writer specifically for " + rn + ".\n" + _rb(rn, ri) + "\n" + NO_PRE + _years_hint() +
             "\n\nGenerate a " + ri["term"] + " strictly following " + rn + " conventions. Match JD keywords where actual experience aligns." +
             "\n\n---JOB DESCRIPTION---\n" + jd + "\n\n---CANDIDATE INFO---\n" + info)
-def p_cmp(cv, jd, rn, ri):
-    return ("Expert analyst for " + rn + ".\n" + _rb(rn, ri) +
-            "\nProvide: JD MATCH X/100 | REGION COMPLIANCE X/100 | KEY MATCHES | GAPS | SUGGESTIONS" +
-            "\n---JD---\n" + jd + "\n---CV---\n" + cv)
+def p_imp(cv, an, rn, ri):
+    japan_hint = ""
+    if ri.get("code") == "JP":
+        japan_hint = (
+            "\n\nCRITICAL JAPAN RIREKISHO REQUIREMENTS:\n"
+            "1) ORDER: List Education and Work History CHRONOLOGICALLY (OLDEST FIRST).\n"
+            "2) PHOTO: Include [PHOTO 3x4cm] placeholder box at top-right.\n"
+            "3) SECTIONS (in this order): Personal Info (with photo box) -> Education (oldest first) -> Work History (oldest first) -> Licenses & Qualifications -> Motivation / Self-PR.\n"
+            "4) LABELS: Use BILINGUAL section labels — write BOTH Japanese (kanji) AND English translation. Example: '氏名 (Name)', '生年月日 (Date of Birth)', '学歴 (Education)'.\n"
+            "5) CONTENT VALUES: Write in ENGLISH for names, addresses, company names (unless kanji provided by candidate).\n"
+            "6) TONE: Formal, factual, no boastful adjectives.\n"
+            "7) END: Include [印 SEAL] placeholder at bottom-right.\n"
+        )
+    return ("Expert CV writer for " + rn + ".\n" + _rb(rn, ri) + "\n" + NO_PRE + _years_hint() +
+            "\nFix ALL issues from analysis. Reformat to strict " + rn + " standards." +
+            japan_hint +
+            "\n---CV---\n" + cv + "\n---ANALYSIS---\n" + an)
 def p_imp_cmp(cv, an, jd, rn, ri, kw="", kws="experience"):
     r = ("\nKEYWORD MODE (ATS): MUST place EVERY keyword. Weave naturally." if kws == "force_all"
          else "\nKEYWORD MODE: Only where experience supports. Weave naturally.")
-    return ("Expert CV writer for " + rn + ".\n" + _rb(rn, ri) + "\n" + NO_PRE +
+    return ("Expert CV writer for " + rn + ".\n" + _rb(rn, ri) + "\n" + NO_PRE + _years_hint() +
             "\nKeep ALL info. Fix issues from analysis. Reformat to strict " + rn + " standard." + r +
             "\n---CV---\n" + cv + "\n---JD---\n" + jd + "\n---ANALYSIS---\n" + an + "\n---KEYWORDS---\n" + kw)
 def p_cover(cv, jd, rn, ri):
@@ -1278,6 +1321,15 @@ elif page == "📊 CV Analysis":
     st.title("📊 CV Analysis")
     st.caption("Analysing against **" + region + "** standards.")
     region_note(st.session_state.get("ana_region"))
+    # If region changed, discard stale analysis to avoid confusion
+    if st.session_state.get("ana_region") and st.session_state["ana_region"] != region:
+        if "ana_result" in st.session_state or "ana_improved" in st.session_state:
+            st.warning(
+                "⚠️ Region changed from **" + st.session_state["ana_region"] +
+                "** to **" + region + "**. Please re-Analyse for the new region."
+            )
+            st.session_state.pop("ana_result", None)
+            st.session_state.pop("ana_improved", None)
     cv_ana_file = st.file_uploader("Upload CV", type=["pdf", "docx", "txt"], key="ana_file")
     cv_ana_input = st.text_area("Or paste CV", height=300, key="ana_cv_input")
     cv_ana = read_file(cv_ana_file) if cv_ana_file else cv_ana_input
