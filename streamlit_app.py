@@ -1122,18 +1122,56 @@ st.markdown("""
         font-size: 22px !important;
     }
     /* Force sidebar radio text to be visible with wrapping */
-    section[data-testid="stSidebar"] label {
+   /* Force sidebar label text to be visible + dark colored on mobile */
+    section[data-testid="stSidebar"] label,
+    section[data-testid="stSidebar"] label p,
+    section[data-testid="stSidebar"] label div,
+    section[data-testid="stSidebar"] label span,
+    section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
+        color: #1a1a1a !important;
+        font-size: 15px !important;
+        font-weight: 500 !important;
         white-space: normal !important;
         overflow: visible !important;
-        font-size: 14px !important;
-        line-height: 1.4 !important;
-        padding: 4px 0 !important;
+        line-height: 1.5 !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        text-shadow: none !important;
     }
-    section[data-testid="stSidebar"] label p,
-    section[data-testid="stSidebar"] label div {
+    /* Radio button text specifically */
+    section[data-testid="stSidebar"] .stRadio label {
+        color: #1a1a1a !important;
+        padding: 6px 8px !important;
+        margin: 2px 0 !important;
+        border-radius: 8px !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+    }
+    section[data-testid="stSidebar"] .stRadio label:hover {
+        background: #E3F2FD !important;
+    }
+    /* Selected radio option */
+    section[data-testid="stSidebar"] .stRadio label[data-checked="true"] {
+        background: #1976D2 !important;
+    }
+    section[data-testid="stSidebar"] .stRadio label[data-checked="true"] p,
+    section[data-testid="stSidebar"] .stRadio label[data-checked="true"] div,
+    section[data-testid="stSidebar"] .stRadio label[data-checked="true"] span {
+        color: white !important;
+        font-weight: 700 !important;
+    }
+    /* Sidebar section headers (bold labels like "AI Provider", "Target Region") */
+    section[data-testid="stSidebar"] .stMarkdown strong {
+        color: #0D47A1 !important;
+        font-weight: 700 !important;
         font-size: 14px !important;
-        white-space: normal !important;
-        display: inline !important;
+    }
+    /* Sidebar captions */
+    section[data-testid="stSidebar"] .stCaption,
+    section[data-testid="stSidebar"] small {
+        color: #555 !important;
+        font-size: 12px !important;
     }
     /* Mobile-specific — wider sidebar so text fits */
     @media (max-width: 768px) {
