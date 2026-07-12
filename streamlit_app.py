@@ -1202,34 +1202,82 @@ st.markdown("""
     }
     /* Keep close arrow always visible */
     /* Sidebar close button — visible top-right of sidebar */
+    /* ============================================================
+       SIDEBAR TOGGLE BUTTONS — always visible with blue background
+       ============================================================ */
+
+    /* Close arrow (« inside open sidebar) — top-right, blue box */
     section[data-testid="stSidebar"] button[kind="header"] {
         position: absolute !important;
-        top: 8px !important;
-        right: 8px !important;
+        top: 10px !important;
+        right: 10px !important;
         z-index: 999999 !important;
-        background: #1976D2 !important;
-        color: white !important;
-        border-radius: 8px !important;
-        padding: 4px 10px !important;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.15) !important;
-    }
-    section[data-testid="stSidebar"] button[kind="header"]:hover {
-        background: #0D47A1 !important;
-    }
-    /* Sidebar open button (when sidebar is closed) — top-left */
-    [data-testid="collapsedControl"] {
-        position: fixed !important;
-        top: 8px !important;
-        left: 8px !important;
-        z-index: 999999 !important;
-        background: #1976D2 !important;
-        color: white !important;
+        background-color: #1976D2 !important;
+        border: none !important;
         border-radius: 8px !important;
         padding: 6px 10px !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
+        width: auto !important;
+        height: auto !important;
+        min-width: 36px !important;
+        min-height: 36px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+    section[data-testid="stSidebar"] button[kind="header"] svg,
+    section[data-testid="stSidebar"] button[kind="header"] * {
+        color: white !important;
+        fill: white !important;
+        stroke: white !important;
+    }
+    section[data-testid="stSidebar"] button[kind="header"]:hover {
+        background-color: #0D47A1 !important;
+    }
+
+    /* Open arrow (» when sidebar is closed) — top-left, blue box */
+    [data-testid="collapsedControl"] {
+        position: fixed !important;
+        top: 10px !important;
+        left: 10px !important;
+        z-index: 999999 !important;
+        background-color: #1976D2 !important;
+        border-radius: 8px !important;
+        padding: 6px 10px !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
+        min-width: 36px !important;
+        min-height: 36px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+    [data-testid="collapsedControl"] svg,
+    [data-testid="collapsedControl"] *,
+    [data-testid="collapsedControl"] button svg,
+    [data-testid="collapsedControl"] button * {
+        color: white !important;
+        fill: white !important;
+        stroke: white !important;
     }
     [data-testid="collapsedControl"]:hover {
-        background: #0D47A1 !important;
+        background-color: #0D47A1 !important;
+    }
+
+    /* Fallback: newer Streamlit versions use different selectors */
+    button[data-testid="stBaseButton-headerNoPadding"],
+    button[data-testid="baseButton-headerNoPadding"] {
+        background-color: #1976D2 !important;
+        border-radius: 8px !important;
+        padding: 6px !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
+    }
+    button[data-testid="stBaseButton-headerNoPadding"] svg,
+    button[data-testid="baseButton-headerNoPadding"] svg,
+    button[data-testid="stBaseButton-headerNoPadding"] *,
+    button[data-testid="baseButton-headerNoPadding"] * {
+        color: white !important;
+        fill: white !important;
+        stroke: white !important;
     }
 
     /* ============================================================
