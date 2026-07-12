@@ -902,7 +902,7 @@ def _parse_questions(text):
 # STREAMLIT CONFIG + CSS
 # ============================================================
 st.set_page_config(page_title="AI CV Builder", page_icon="📄",
-                   layout="wide", initial_sidebar_state="collapsed")
+                   layout="wide", initial_sidebar_state="colapsed")
 
 st.markdown("""
 <style>
