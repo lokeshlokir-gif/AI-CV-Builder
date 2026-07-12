@@ -1628,63 +1628,63 @@ if page == "🏠 Home":
 
     # ---- 9 premium cards, each with checkmark features + CTA button ----
     cards_data = [
-        ("📝 Generate CV", "pcard-green", "📝 Generate CV",
+        ("pcard-green",  "📝 Generate CV",
          "Create ATS-optimized CVs formatted for your target country in seconds.",
          ["14 country formats (UK/US/India/UAE/Japan+)",
           "Word & PDF export",
           "Region-specific rules built-in"],
          "Start CV →", "📝 Generate CV"),
 
-        ("🔍 CV vs JD", "pcard-yellow", "🔍 CV vs JD",
+        ("pcard-yellow", "🔍 CV vs JD",
          "Compare your CV against a job description and see exactly where you match.",
          ["JD match scoring",
           "Keyword gap analysis",
           "AI-generated cover letter"],
          "Compare Now →", "🔍 CV vs JD"),
 
-        ("📊 CV Analysis", "pcard-blue", "📊 CV Analysis",
+        ("pcard-blue",   "📊 CV Analysis",
          "Let AI audit your CV like a recruiter would and score its ATS compliance.",
          ["ATS score out of 100",
           "Strengths & weaknesses",
           "AI-improved version"],
          "Analyse CV →", "📊 CV Analysis"),
 
-        ("📑 Multi-JD Compare", "pcard-purple", "📑 Multi-JD Compare",
+        ("pcard-purple", "📑 Multi-JD Compare",
          "Compare your CV against multiple JDs at once — find the best fit.",
          ["Up to 10 JDs at once",
           "Ranked by best fit",
           "Match % per job"],
          "Compare JDs →", "📑 Multi-JD Compare"),
 
-        ("🎤 Interview Prep", "pcard-green", "🎤 Interview Prep",
+        ("pcard-green",  "🎤 Interview Prep",
          "AI generates 15-20 tailored interview questions with STAR frameworks.",
          ["Custom questions from JD",
           "STAR method answers",
           "Downloadable practice sheet"],
          "Start Prep →", "🎤 Interview Prep"),
 
-        ("🎙️ Mock Interview", "pcard-yellow", "🎙️ Mock Interview",
+        ("pcard-yellow", "🎙️ Mock Interview",
          "Speak your answers in any language — AI polishes and scores them.",
          ["130+ domains (CSE/Medical/AYUSH+)",
           "Voice input in 32 languages",
           "Real-time AI scoring"],
          "Start Interview →", "🎙️ Mock Interview"),
 
-        ("🧑‍💼 Coaching", "pcard-blue", "🧑‍💼 Coaching",
+        ("pcard-blue",   "🧑‍💼 Coaching",
          "Get personalized AI career advice on 10+ topics.",
          ["Salary negotiation tips",
           "Career pivot strategies",
           "LinkedIn optimization"],
          "Get Advice →", "🧑‍💼 Coaching"),
 
-        ("📚 My Library", "pcard-green", "📚 My Library",
+        ("pcard-green",  "📚 My Library",
          "Save your interview prep, evaluations and career advice.",
          ["Save everything you generate",
           "Export as JSON backup",
           "Restore any time"],
          "Open Library →", "📚 My Library"),
 
-        ("⚙️ Settings", "pcard-purple", "⚙️ Settings",
+        ("pcard-purple", "⚙️ Settings",
          "Configure AI providers, regions, and personalization.",
          ["Gemini + OpenAI + Claude",
           "14 target regions",
@@ -1694,7 +1694,7 @@ if page == "🏠 Home":
 
     # Render 2-column grid of premium cards
     cols = st.columns(2, gap="medium")
-    for i, (btn_label_unique, css_color, title, desc, features, cta_label, target_page) in enumerate(cards_data):
+    for i, (css_color, title, desc, features, cta_label, target_page) in enumerate(cards_data):
         with cols[i % 2]:
             # Build features list HTML
             feat_html = ""
