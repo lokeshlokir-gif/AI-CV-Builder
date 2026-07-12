@@ -1601,106 +1601,69 @@ if page == "🏠 Home":
     )
     st.markdown(hero_html, unsafe_allow_html=True)
 
-    # Trust bar under hero
-    trust_html = (
-        "<div class='trust-bar'>"
-        "<span>🌍 <b>14</b>&nbsp;Country Formats</span>"
-        "<span>🎙️ <b>130+</b>&nbsp;Mock Domains</span>"
-        "<span>🎤 <b>32</b>&nbsp;Voice Languages</span>"
-        "<span>🤖 <b>3</b>&nbsp;AI Providers</span>"
-        "<span>🆓 <b>Free</b>&nbsp;with Gemini</span>"
-        "</div>"
-    )
-    st.markdown(trust_html, unsafe_allow_html=True)
-
     # Onboarding banner if no API key
     if not api_key:
-        onboard_html = (
+        st.markdown(
             "<div class='onboard'>"
             "<h2>🆓 First time? Get a FREE Gemini API key in 30 seconds:</h2>"
             "<p><b>Step 1:</b> Open aistudio.google.com/apikey<br>"
             "<b>Step 2:</b> Sign in with your Google account<br>"
             "<b>Step 3:</b> Click 'Create API Key' → copy → paste in sidebar<br>"
             "<br><i>100% free with generous daily quota.</i></p>"
-            "</div>"
-        )
-        st.markdown(onboard_html, unsafe_allow_html=True)
+            "</div>",
+            unsafe_allow_html=True)
 
-    # ---- 9 premium cards, each with checkmark features + CTA button ----
+    st.markdown("### 🚀 Choose a feature to start")
+
+    # Card + button data
     cards_data = [
         ("pcard-green",  "📝 Generate CV",
-         "Create ATS-optimized CVs formatted for your target country in seconds.",
-         ["14 country formats (UK/US/India/UAE/Japan+)",
-          "Word & PDF export",
-          "Region-specific rules built-in"],
+         "Create ATS-optimized CVs formatted for your target country.",
+         ["14 country formats", "Word & PDF export", "Region rules built-in"],
          "Start CV →", "📝 Generate CV"),
-
         ("pcard-yellow", "🔍 CV vs JD",
-         "Compare your CV against a job description and see exactly where you match.",
-         ["JD match scoring",
-          "Keyword gap analysis",
-          "AI-generated cover letter"],
+         "Compare your CV against a job description.",
+         ["JD match scoring", "Keyword gap analysis", "AI cover letter"],
          "Compare Now →", "🔍 CV vs JD"),
-
         ("pcard-blue",   "📊 CV Analysis",
-         "Let AI audit your CV like a recruiter would and score its ATS compliance.",
-         ["ATS score out of 100",
-          "Strengths & weaknesses",
-          "AI-improved version"],
+         "Let AI audit your CV and score ATS compliance.",
+         ["ATS score /100", "Strengths & weaknesses", "AI-improved version"],
          "Analyse CV →", "📊 CV Analysis"),
-
         ("pcard-purple", "📑 Multi-JD Compare",
-         "Compare your CV against multiple JDs at once — find the best fit.",
-         ["Up to 10 JDs at once",
-          "Ranked by best fit",
-          "Match % per job"],
+         "Compare your CV against multiple JDs at once.",
+         ["Up to 10 JDs", "Ranked by best fit", "Match % per job"],
          "Compare JDs →", "📑 Multi-JD Compare"),
-
         ("pcard-green",  "🎤 Interview Prep",
-         "AI generates 15-20 tailored interview questions with STAR frameworks.",
-         ["Custom questions from JD",
-          "STAR method answers",
-          "Downloadable practice sheet"],
+         "AI-generated interview questions with STAR frameworks.",
+         ["Custom from JD", "STAR method answers", "Downloadable sheet"],
          "Start Prep →", "🎤 Interview Prep"),
-
         ("pcard-yellow", "🎙️ Mock Interview",
-         "Speak your answers in any language — AI polishes and scores them.",
-         ["130+ domains (CSE/Medical/AYUSH+)",
-          "Voice input in 32 languages",
-          "Real-time AI scoring"],
+         "Speak your answers — AI polishes and scores them.",
+         ["130+ domains", "Voice input 32 languages", "Real-time AI scoring"],
          "Start Interview →", "🎙️ Mock Interview"),
-
         ("pcard-blue",   "🧑‍💼 Coaching",
-         "Get personalized AI career advice on 10+ topics.",
-         ["Salary negotiation tips",
-          "Career pivot strategies",
-          "LinkedIn optimization"],
+         "Personalized AI career advice on 10+ topics.",
+         ["Salary negotiation", "Career pivots", "LinkedIn tips"],
          "Get Advice →", "🧑‍💼 Coaching"),
-
         ("pcard-green",  "📚 My Library",
-         "Save your interview prep, evaluations and career advice.",
-         ["Save everything you generate",
-          "Export as JSON backup",
-          "Restore any time"],
+         "Save your interview prep and evaluations.",
+         ["Save everything", "Export as JSON", "Restore any time"],
          "Open Library →", "📚 My Library"),
-
         ("pcard-purple", "⚙️ Settings",
-         "Configure AI providers, regions, and personalization.",
-         ["Gemini + OpenAI + Claude",
-          "14 target regions",
-          "Mobile install tips"],
+         "Configure AI providers, regions, personalization.",
+         ["Gemini/OpenAI/Claude", "14 regions", "Mobile install tips"],
          "Open Settings →", "⚙️ Settings"),
     ]
 
-    # Render 2-column grid of premium cards
+    # Render 2-column grid: card + button per cell
     cols = st.columns(2, gap="medium")
     for i, (css_color, title, desc, features, cta_label, target_page) in enumerate(cards_data):
         with cols[i % 2]:
-            # Build features list HTML
+            # Feature list HTML
             feat_html = ""
             for f in features:
                 feat_html += "<li>" + f + "</li>"
-            # Full card HTML
+            # Card visual
             card_html = (
                 "<div class='pcard'>"
                 "<div class='pcard-head " + css_color + "'>"
@@ -1713,7 +1676,7 @@ if page == "🏠 Home":
                 "</div>"
             )
             st.markdown(card_html, unsafe_allow_html=True)
-            # CTA button below card — clicking navigates
+            # Working navigation button
             if st.button(cta_label, key="pcard_btn_" + str(i),
                          use_container_width=True, type="primary"):
                 st.session_state.page = target_page
