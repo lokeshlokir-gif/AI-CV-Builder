@@ -906,18 +906,15 @@ st.set_page_config(page_title="AI CV Builder", page_icon="📄",
 st.markdown("""
 <style>
     /* ============================================================
-       PREMIUM UI OVERHAUL — Option B (Confused.com trust-blue style)
+       FINAL UI — clean modern, fixes mobile sidebar visibility
        ============================================================ */
 
-    /* Load Inter font from Google Fonts */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
-    /* Apply Inter to all app content */
     html, body, [class*="css"] {
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
     }
 
-    /* Cleaner main container spacing */
     .main .block-container {
         padding-top: 1.5rem;
         padding-bottom: 3rem;
@@ -925,140 +922,138 @@ st.markdown("""
     }
 
     /* ============================================================
-       HERO — Bold blue trust panel
+       HERO — clean deep blue
        ============================================================ */
-
     .hero {
-        background: linear-gradient(135deg, #1E88E5 0%, #1565C0 100%);
+        background: linear-gradient(135deg, #1976D2 0%, #0D47A1 100%);
         color: white;
-        padding: 40px 32px;
+        padding: 36px 30px;
         border-radius: 16px;
-        margin-bottom: 28px;
-        box-shadow: 0 10px 30px rgba(30,136,229,0.25);
-        position: relative;
-        overflow: hidden;
-    }
-    .hero::before {
-        content: '';
-        position: absolute;
-        top: -50px; right: -50px;
-        width: 200px; height: 200px;
-        background: rgba(255,255,255,0.08);
-        border-radius: 50%;
+        margin-bottom: 24px;
+        box-shadow: 0 8px 24px rgba(25,118,210,0.20);
     }
     .hero h1 {
         color: white !important;
         font-weight: 800 !important;
-        font-size: 34px !important;
+        font-size: 32px !important;
         margin: 0 0 12px 0 !important;
         letter-spacing: -0.5px;
-        position: relative;
-        z-index: 2;
     }
     .hero p {
         color: #E3F2FD !important;
         font-size: 16px !important;
         line-height: 1.6 !important;
         margin: 0 !important;
-        position: relative;
-        z-index: 2;
     }
 
     /* ============================================================
-       HOME CARDS — clean white with strong hover
+       TRUST BAR
        ============================================================ */
+    .trust-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 14px 18px;
+        background: #F5F9FD;
+        border-radius: 12px;
+        margin-bottom: 20px;
+        border: 1px solid #E1EBF5;
+        justify-content: center;
+        font-size: 13px;
+        color: #333;
+        font-weight: 500;
+    }
+    .trust-bar span { display: inline-flex; align-items: center; gap: 4px; }
+    .trust-bar b { color: #1976D2; }
 
-    .home-card-link {
-        display: block;
-        text-decoration: none;
-        color: inherit;
-        cursor: pointer;
-    }
-    .home-card-link:hover,
-    .home-card-link:focus,
-    .home-card-link:visited {
-        text-decoration: none;
-        color: inherit;
-    }
-    .home-card {
-        padding: 26px 24px;
+    /* ============================================================
+       PREMIUM CARDS — Confused.com style
+       ============================================================ */
+    .pcard {
+        background: white;
         border-radius: 14px;
-        margin-bottom: 14px;
-        min-height: 130px;
-        cursor: pointer;
+        padding: 0;
+        margin-bottom: 16px;
+        box-shadow: 0 3px 12px rgba(0,0,0,0.06);
+        border: 1px solid #E1EBF5;
+        overflow: hidden;
         transition: all 0.2s ease;
-        background: #FFFFFF !important;
-        border: 2px solid #E3F2FD;
-        display: block;
-        width: 100%;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
     }
-    .home-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 12px 24px rgba(30,136,229,0.15);
-        border-color: #1E88E5;
+    .pcard:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 24px rgba(25,118,210,0.15);
+        border-color: #1976D2;
     }
-    .home-card:active {
-        transform: translateY(-2px) scale(0.99);
+    .pcard-head {
+        padding: 20px 22px 16px 22px;
+        color: white;
     }
-    .home-card h3 {
-        margin-top: 0 !important;
-        margin-bottom: 8px !important;
-        color: #111 !important;
+    .pcard-head h3 {
+        margin: 0 !important;
+        color: white !important;
         font-size: 20px !important;
         font-weight: 700 !important;
     }
-    .home-card p {
-        color: #555 !important;
-        margin: 0 !important;
-        font-size: 15px !important;
+    .pcard-green  { background: linear-gradient(135deg, #388E3C 0%, #1B5E20 100%); }
+    .pcard-yellow { background: linear-gradient(135deg, #F57C00 0%, #E65100 100%); }
+    .pcard-blue   { background: linear-gradient(135deg, #1976D2 0%, #0D47A1 100%); }
+    .pcard-purple { background: linear-gradient(135deg, #7B1FA2 0%, #4A148C 100%); }
+    .pcard-body { padding: 16px 22px 20px 22px; }
+    .pcard-body p {
+        color: #444 !important;
+        font-size: 14px !important;
         line-height: 1.5 !important;
+        margin: 0 0 12px 0 !important;
     }
-
-    /* Subtle color accents per card type */
-    .bg-green  { border-left: 5px solid #4CAF50 !important; }
-    .bg-yellow { border-left: 5px solid #FFC107 !important; }
-    .bg-blue   { border-left: 5px solid #1E88E5 !important; }
-    .bg-purple { border-left: 5px solid #9C27B0 !important; }
-
-    /* ============================================================
-       STATS BAR — clean, professional
-       ============================================================ */
-
-    .stats-bar {
-        background: #F8FAFB;
-        padding: 16px 20px;
-        border-radius: 12px;
-        margin-top: 20px;
-        text-align: center;
-        border: 1px solid #E3F2FD;
-        font-size: 14px;
+    .pcard-body ul {
+        list-style: none;
+        padding: 0;
+        margin: 0 0 8px 0;
+    }
+    .pcard-body ul li {
+        padding: 4px 0 4px 26px;
         color: #333;
+        font-size: 13px;
+        position: relative;
+        font-weight: 500;
     }
-    .stats-bar b { color: #1565C0; }
+    .pcard-body ul li::before {
+        content: '✓';
+        position: absolute;
+        left: 0;
+        top: 3px;
+        color: #388E3C;
+        font-weight: 800;
+        font-size: 13px;
+        background: #E8F5E9;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        text-align: center;
+        line-height: 18px;
+    }
 
     /* ============================================================
-       ONBOARDING — bold green trust panel
+       ONBOARDING
        ============================================================ */
-
     .onboard {
-        background: linear-gradient(135deg, #43A047 0%, #2E7D32 100%);
+        background: linear-gradient(135deg, #388E3C 0%, #1B5E20 100%);
         color: white;
-        padding: 28px 26px;
-        border-radius: 16px;
-        margin-bottom: 24px;
-        box-shadow: 0 8px 24px rgba(67,160,71,0.25);
+        padding: 26px 24px;
+        border-radius: 14px;
+        margin-bottom: 22px;
+        box-shadow: 0 6px 20px rgba(56,142,60,0.20);
     }
     .onboard h2 {
         color: white !important;
-        margin: 0 0 14px 0 !important;
-        font-size: 22px !important;
+        margin: 0 0 12px 0 !important;
+        font-size: 21px !important;
         font-weight: 700 !important;
     }
     .onboard p {
         color: #E8F5E9 !important;
-        font-size: 16px !important;
-        line-height: 1.9 !important;
+        font-size: 15px !important;
+        line-height: 1.8 !important;
         margin: 0 !important;
     }
     .onboard a {
@@ -1068,32 +1063,120 @@ st.markdown("""
     }
 
     /* ============================================================
-       API KEY MISSING BANNER
+       BUTTONS
        ============================================================ */
-
-    .nokey-banner {
-        background: linear-gradient(135deg, #FB8C00 0%, #E65100 100%);
-        color: white;
-        padding: 20px 22px;
-        border-radius: 12px;
-        margin-bottom: 20px;
-        box-shadow: 0 6px 18px rgba(251,140,0,0.2);
-    }
-    .nokey-banner h3 {
+    .stButton > button[kind="primary"] {
+        background: #111 !important;
         color: white !important;
-        margin: 0 0 10px 0 !important;
+        border: none !important;
+        border-radius: 10px !important;
+        padding: 11px 22px !important;
         font-weight: 700 !important;
+        font-size: 14px !important;
+        transition: all 0.2s ease !important;
     }
-    .nokey-banner p {
-        color: #FFF3E0 !important;
-        margin: 0 !important;
-        line-height: 1.7 !important;
+    .stButton > button[kind="primary"]:hover {
+        background: #1976D2 !important;
+        transform: translateY(-1px);
+    }
+    .stButton > button:not([kind="primary"]) {
+        background: white !important;
+        color: #111 !important;
+        border: 2px solid #E1EBF5 !important;
+        border-radius: 10px !important;
+        font-weight: 600 !important;
+    }
+    .stButton > button:not([kind="primary"]):hover {
+        border-color: #1976D2 !important;
+        color: #1976D2 !important;
+    }
+    div[data-testid="stDownloadButton"] button {
+        font-weight: 700 !important;
+        border-radius: 10px !important;
     }
 
     /* ============================================================
-       REGION WARNING
+       INPUTS
        ============================================================ */
+    .stTextInput input, .stTextArea textarea, .stSelectbox > div > div {
+        border-radius: 10px !important;
+        border: 2px solid #E1EBF5 !important;
+        font-family: 'Inter', sans-serif !important;
+    }
+    .stTextInput input:focus, .stTextArea textarea:focus {
+        border-color: #1976D2 !important;
+        box-shadow: 0 0 0 3px rgba(25,118,210,0.1) !important;
+    }
 
+    /* ============================================================
+       SIDEBAR — FORCE labels visible on mobile
+       ============================================================ */
+    section[data-testid="stSidebar"] {
+        background: #F5F9FD !important;
+        min-width: 280px !important;
+        width: 280px !important;
+    }
+    section[data-testid="stSidebar"] .stMarkdown h1 {
+        color: #0D47A1 !important;
+        font-weight: 800 !important;
+        font-size: 22px !important;
+    }
+    /* Force sidebar radio text to be visible with wrapping */
+    section[data-testid="stSidebar"] label {
+        white-space: normal !important;
+        overflow: visible !important;
+        font-size: 14px !important;
+        line-height: 1.4 !important;
+        padding: 4px 0 !important;
+    }
+    section[data-testid="stSidebar"] label p,
+    section[data-testid="stSidebar"] label div {
+        font-size: 14px !important;
+        white-space: normal !important;
+        display: inline !important;
+    }
+    /* Mobile-specific — wider sidebar so text fits */
+    @media (max-width: 768px) {
+        section[data-testid="stSidebar"] {
+            min-width: 85vw !important;
+            width: 85vw !important;
+        }
+    }
+    /* Keep close arrow always visible */
+    section[data-testid="stSidebar"] button[kind="header"] {
+        position: fixed !important;
+        top: 10px !important;
+        z-index: 999999 !important;
+    }
+    [data-testid="collapsedControl"] {
+        position: fixed !important;
+        top: 10px !important;
+        left: 10px !important;
+        z-index: 999999 !important;
+        background: rgba(255,255,255,0.95) !important;
+        border-radius: 8px !important;
+        padding: 4px !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    /* ============================================================
+       HEADINGS
+       ============================================================ */
+    h1 { font-weight: 800 !important; letter-spacing: -0.5px; color: #111 !important; }
+    h2 { font-weight: 700 !important; color: #111 !important; }
+    h3 { font-weight: 700 !important; color: #1976D2 !important; }
+    h4, h5 { font-weight: 600 !important; color: #111 !important; }
+
+    /* ============================================================
+       ALERTS
+       ============================================================ */
+    .stAlert {
+        border-radius: 12px !important;
+        border-left-width: 4px !important;
+        font-family: 'Inter', sans-serif !important;
+    }
+
+    /* Region warning */
     .region-warning {
         background: #FFF8E1;
         padding: 14px 16px;
@@ -1104,116 +1187,31 @@ st.markdown("""
         color: #5D4037;
     }
 
-    /* ============================================================
-       BUTTONS — bold, black, unmissable (Confused.com style)
-       ============================================================ */
+    /* Nokey banner */
+    .nokey-banner {
+        background: linear-gradient(135deg, #F57C00 0%, #E65100 100%);
+        color: white;
+        padding: 18px 22px;
+        border-radius: 12px;
+        margin-bottom: 20px;
+    }
+    .nokey-banner h3 { color: white !important; margin: 0 0 8px 0 !important; }
+    .nokey-banner p { color: #FFF3E0 !important; margin: 0 !important; }
 
-    .stButton > button[kind="primary"] {
-        background: #111 !important;
-        color: white !important;
-        border: none !important;
-        border-radius: 10px !important;
-        padding: 12px 24px !important;
-        font-weight: 700 !important;
-        font-size: 15px !important;
-        letter-spacing: 0.2px !important;
-        transition: all 0.2s ease !important;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+    /* Stats bar */
+    .stats-bar {
+        background: #F5F9FD;
+        padding: 14px 18px;
+        border-radius: 12px;
+        margin-top: 16px;
+        text-align: center;
+        border: 1px solid #E1EBF5;
+        font-size: 14px;
+        color: #333;
     }
-    .stButton > button[kind="primary"]:hover {
-        background: #1E88E5 !important;
-        transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(30,136,229,0.3) !important;
-    }
-    .stButton > button[kind="primary"]:active {
-        transform: translateY(0) scale(0.98);
-    }
-    /* Secondary buttons */
-    .stButton > button:not([kind="primary"]) {
-        background: white !important;
-        color: #111 !important;
-        border: 2px solid #E3F2FD !important;
-        border-radius: 10px !important;
-        padding: 10px 20px !important;
-        font-weight: 600 !important;
-        transition: all 0.2s ease !important;
-    }
-    .stButton > button:not([kind="primary"]):hover {
-        border-color: #1E88E5 !important;
-        color: #1E88E5 !important;
-    }
-    /* Download buttons — bold */
-    div[data-testid="stDownloadButton"] button {
-        font-weight: 700 !important;
-        border-radius: 10px !important;
-        padding: 10px 20px !important;
-    }
-
-    /* ============================================================
-       INPUTS — cleaner text areas & selectboxes
-       ============================================================ */
-
-    .stTextInput input, .stTextArea textarea, .stSelectbox > div > div {
-        border-radius: 10px !important;
-        border: 2px solid #E3F2FD !important;
-        font-family: 'Inter', sans-serif !important;
-    }
-    .stTextInput input:focus, .stTextArea textarea:focus {
-        border-color: #1E88E5 !important;
-        box-shadow: 0 0 0 3px rgba(30,136,229,0.1) !important;
-    }
-
-    /* ============================================================
-       SIDEBAR — clean look
-       ============================================================ */
-
-    section[data-testid="stSidebar"] {
-        background: #F8FAFB !important;
-        border-right: 1px solid #E3F2FD;
-    }
-    section[data-testid="stSidebar"] .stMarkdown h1 {
-        color: #1565C0 !important;
-        font-weight: 800 !important;
-    }
-    /* Keep close arrow visible on mobile scroll */
-    section[data-testid="stSidebar"] button[kind="header"] {
-        position: fixed !important; top: 10px !important; z-index: 999999 !important;
-    }
-    [data-testid="collapsedControl"] {
-        position: fixed !important; top: 10px !important; left: 10px !important;
-        z-index: 999999 !important; background: rgba(255,255,255,0.95) !important;
-        border-radius: 8px !important; padding: 4px !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-
-    /* ============================================================
-       HEADINGS — cleaner hierarchy
-       ============================================================ */
-
-    h1 { font-weight: 800 !important; letter-spacing: -0.5px; color: #111 !important; }
-    h2 { font-weight: 700 !important; letter-spacing: -0.3px; color: #111 !important; }
-    h3 { font-weight: 700 !important; color: #1E88E5 !important; }
-    h4, h5 { font-weight: 600 !important; color: #111 !important; }
-
-    /* ============================================================
-       INFO / SUCCESS / WARNING banners — softer look
-       ============================================================ */
-
-    .stAlert {
-        border-radius: 12px !important;
-        border-left-width: 4px !important;
-        font-family: 'Inter', sans-serif !important;
-    }
-
-    /* ============================================================
-       EXPANDER — cleaner
-       ============================================================ */
-
-    .streamlit-expanderHeader {
-        font-weight: 600 !important;
-        border-radius: 10px !important;
-    }
+    .stats-bar b { color: #1976D2; }
 </style>
+
 """, unsafe_allow_html=True)
 
 # ============================================================
