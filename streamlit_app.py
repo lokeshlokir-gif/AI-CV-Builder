@@ -1201,20 +1201,35 @@ st.markdown("""
         }
     }
     /* Keep close arrow always visible */
+    /* Sidebar close button — visible top-right of sidebar */
     section[data-testid="stSidebar"] button[kind="header"] {
-        position: fixed !important;
-        top: 10px !important;
+        position: absolute !important;
+        top: 8px !important;
+        right: 8px !important;
         z-index: 999999 !important;
+        background: #1976D2 !important;
+        color: white !important;
+        border-radius: 8px !important;
+        padding: 4px 10px !important;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.15) !important;
     }
+    section[data-testid="stSidebar"] button[kind="header"]:hover {
+        background: #0D47A1 !important;
+    }
+    /* Sidebar open button (when sidebar is closed) — top-left */
     [data-testid="collapsedControl"] {
         position: fixed !important;
-        top: 10px !important;
-        left: 10px !important;
+        top: 8px !important;
+        left: 8px !important;
         z-index: 999999 !important;
-        background: rgba(255,255,255,0.95) !important;
+        background: #1976D2 !important;
+        color: white !important;
         border-radius: 8px !important;
-        padding: 4px !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        padding: 6px 10px !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
+    }
+    [data-testid="collapsedControl"]:hover {
+        background: #0D47A1 !important;
     }
 
     /* ============================================================
