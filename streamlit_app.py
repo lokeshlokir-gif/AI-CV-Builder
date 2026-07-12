@@ -1331,6 +1331,57 @@ st.markdown("""
         color: #333;
     }
     .stats-bar b { color: #1976D2; }
+    /* ============================================================
+       MERGE CARD + BUTTON — visually appear as ONE clickable unit
+       ============================================================ */
+
+    /* Card removes bottom rounding — flat bottom for merge */
+    .pcard {
+        border-radius: 14px 14px 0 0 !important;
+        margin-bottom: 0 !important;
+        border-bottom: none !important;
+    }
+
+    /* Button under card — flat top, rounded bottom, colored */
+    .pcard + div .stButton > button,
+    .pcard + div [data-testid="stButton"] > button {
+        border-radius: 0 0 14px 14px !important;
+        margin-top: -2px !important;
+        margin-bottom: 20px !important;
+        width: 100% !important;
+        padding: 16px !important;
+        font-weight: 700 !important;
+        font-size: 15px !important;
+        background: #111 !important;
+        color: white !important;
+        border: 1px solid #E1EBF5 !important;
+        border-top: none !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
+        transition: all 0.2s ease !important;
+    }
+    .pcard + div .stButton > button:hover,
+    .pcard + div [data-testid="stButton"] > button:hover {
+        background: #1976D2 !important;
+        color: white !important;
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(25,118,210,0.25) !important;
+    }
+    .pcard + div .stButton > button:active,
+    .pcard + div [data-testid="stButton"] > button:active {
+        transform: scale(0.99);
+    }
+
+    /* Hovering the card should hint at the button too */
+    .pcard:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 20px rgba(25,118,210,0.12) !important;
+        border-color: #1976D2 !important;
+    }
+
+    /* Hide gap between the card container and button — visual merge */
+    div[data-testid="column"] > div:has(.pcard) {
+        margin-bottom: 0 !important;
+    }
 </style>
 
 """, unsafe_allow_html=True)
