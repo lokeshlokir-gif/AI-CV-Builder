@@ -4,3 +4,4 @@ pypdf
 requests
 certifi
 reportlab
+streamlit-option-menu
