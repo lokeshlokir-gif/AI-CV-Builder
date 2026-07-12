@@ -1591,15 +1591,14 @@ def region_note(stored_region):
 # ============================================================
 if page == "🏠 Home":
     # Hero banner
-    hero_html = (
+    st.markdown(
         "<div class='hero'>"
         "<h1>📄 AI CV Builder</h1>"
-        "<p>Land your dream job with region-specific CVs, 130+ mock interview domains,"
-        " voice input in 32 languages, and AI polish that transforms rough speech into"
-        " professional English.</p>"
-        "</div>"
-    )
-    st.markdown(hero_html, unsafe_allow_html=True)
+        "<p>Land your dream job with region-specific CVs, 130+ mock interview domains, "
+        "voice input in 32 languages, and AI polish that transforms rough speech into "
+        "professional English.</p>"
+        "</div>",
+        unsafe_allow_html=True)
 
     # Onboarding banner if no API key
     if not api_key:
@@ -1613,77 +1612,37 @@ if page == "🏠 Home":
             "</div>",
             unsafe_allow_html=True)
 
-    st.markdown("### 🚀 Choose a feature to start")
+    st.markdown("### 🚀 What can this app do?")
+    st.markdown("👈 **Use the sidebar** to navigate to any feature:")
 
-    # Card + button data
-    cards_data = [
-        ("pcard-green",  "📝 Generate CV",
-         "Create ATS-optimized CVs formatted for your target country.",
-         ["14 country formats", "Word & PDF export", "Region rules built-in"],
-         "Start CV →", "📝 Generate CV"),
-        ("pcard-yellow", "🔍 CV vs JD",
-         "Compare your CV against a job description.",
-         ["JD match scoring", "Keyword gap analysis", "AI cover letter"],
-         "Compare Now →", "🔍 CV vs JD"),
-        ("pcard-blue",   "📊 CV Analysis",
-         "Let AI audit your CV and score ATS compliance.",
-         ["ATS score /100", "Strengths & weaknesses", "AI-improved version"],
-         "Analyse CV →", "📊 CV Analysis"),
-        ("pcard-purple", "📑 Multi-JD Compare",
-         "Compare your CV against multiple JDs at once.",
-         ["Up to 10 JDs", "Ranked by best fit", "Match % per job"],
-         "Compare JDs →", "📑 Multi-JD Compare"),
-        ("pcard-green",  "🎤 Interview Prep",
-         "AI-generated interview questions with STAR frameworks.",
-         ["Custom from JD", "STAR method answers", "Downloadable sheet"],
-         "Start Prep →", "🎤 Interview Prep"),
-        ("pcard-yellow", "🎙️ Mock Interview",
-         "Speak your answers — AI polishes and scores them.",
-         ["130+ domains", "Voice input 32 languages", "Real-time AI scoring"],
-         "Start Interview →", "🎙️ Mock Interview"),
-        ("pcard-blue",   "🧑‍💼 Coaching",
-         "Personalized AI career advice on 10+ topics.",
-         ["Salary negotiation", "Career pivots", "LinkedIn tips"],
-         "Get Advice →", "🧑‍💼 Coaching"),
-        ("pcard-green",  "📚 My Library",
-         "Save your interview prep and evaluations.",
-         ["Save everything", "Export as JSON", "Restore any time"],
-         "Open Library →", "📚 My Library"),
-        ("pcard-purple", "⚙️ Settings",
-         "Configure AI providers, regions, personalization.",
-         ["Gemini/OpenAI/Claude", "14 regions", "Mobile install tips"],
-         "Open Settings →", "⚙️ Settings"),
+    features = [
+        ("📝 Generate CV", "Region-formatted CVs (14 countries) with Word/PDF export"),
+        ("🔍 CV vs JD", "Compare your CV vs a job description — get match score + cover letter"),
+        ("📊 CV Analysis", "AI audits your CV, scores ATS compliance, offers improvements"),
+        ("📑 Multi-JD Compare", "Compare your CV against up to 10 JDs — find best fit"),
+        ("🎤 Interview Prep", "AI generates 15-20 interview questions with STAR frameworks"),
+        ("🎙️ Mock Interview", "Voice input in 32 languages, AI polish, 130+ domains"),
+        ("🧑‍💼 Coaching", "Personalized AI career advice on 10+ topics"),
+        ("📚 My Library", "Save & export your interview prep and evaluations"),
+        ("⚙️ Settings", "Configure AI providers, regions, mobile install tips"),
     ]
 
-    # Render 2-column grid: card + button per cell
-    cols = st.columns(2, gap="medium")
-    for i, (css_color, title, desc, features, cta_label, target_page) in enumerate(cards_data):
-        with cols[i % 2]:
-            # Feature list HTML
-            feat_html = ""
-            for f in features:
-                feat_html += "<li>" + f + "</li>"
-            # Card visual
-            card_html = (
-                "<div class='pcard'>"
-                "<div class='pcard-head " + css_color + "'>"
-                "<h3>" + title + "</h3>"
-                "</div>"
-                "<div class='pcard-body'>"
-                "<p>" + desc + "</p>"
-                "<ul>" + feat_html + "</ul>"
-                "</div>"
-                "</div>"
-            )
-            st.markdown(card_html, unsafe_allow_html=True)
-            # Working navigation button
-            if st.button(cta_label, key="pcard_btn_" + str(i),
-                         use_container_width=True, type="primary"):
-                st.session_state.page = target_page
-                st.rerun()
+    col_left, col_right = st.columns(2)
+    for i, (title, desc) in enumerate(features):
+        target = col_left if i % 2 == 0 else col_right
+        with target:
+            st.markdown(
+                "<div style='padding:16px 18px;margin:8px 0;background:white;"
+                "border-radius:10px;border-left:4px solid #1976D2;"
+                "box-shadow:0 2px 8px rgba(0,0,0,0.06);'>"
+                "<h4 style='margin:0 0 6px 0;color:#111;font-size:16px;'>" + title + "</h4>"
+                "<p style='margin:0;color:#555;font-size:14px;line-height:1.5;'>" + desc + "</p>"
+                "</div>",
+                unsafe_allow_html=True)
 
     st.markdown("---")
     st.info("💡 **Currently set to:** " + region + " — change region anytime in the sidebar.")
+    st.success("📱 **Tip:** On mobile, tap the » arrow (top-left) to open the sidebar.")
 
 # ============================================================
 # PAGE: GENERATE CV
