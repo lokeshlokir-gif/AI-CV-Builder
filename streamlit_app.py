@@ -905,46 +905,313 @@ st.set_page_config(page_title="AI CV Builder", page_icon="📄",
 
 st.markdown("""
 <style>
+    /* ============================================================
+       PREMIUM UI OVERHAUL — Option B (Confused.com trust-blue style)
+       ============================================================ */
+
+    /* Load Inter font from Google Fonts */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+    /* Apply Inter to all app content */
+    html, body, [class*="css"] {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+    }
+
+    /* Cleaner main container spacing */
+    .main .block-container {
+        padding-top: 1.5rem;
+        padding-bottom: 3rem;
+        max-width: 1100px;
+    }
+
+    /* ============================================================
+       HERO — Bold blue trust panel
+       ============================================================ */
+
+    .hero {
+        background: linear-gradient(135deg, #1E88E5 0%, #1565C0 100%);
+        color: white;
+        padding: 40px 32px;
+        border-radius: 16px;
+        margin-bottom: 28px;
+        box-shadow: 0 10px 30px rgba(30,136,229,0.25);
+        position: relative;
+        overflow: hidden;
+    }
+    .hero::before {
+        content: '';
+        position: absolute;
+        top: -50px; right: -50px;
+        width: 200px; height: 200px;
+        background: rgba(255,255,255,0.08);
+        border-radius: 50%;
+    }
+    .hero h1 {
+        color: white !important;
+        font-weight: 800 !important;
+        font-size: 34px !important;
+        margin: 0 0 12px 0 !important;
+        letter-spacing: -0.5px;
+        position: relative;
+        z-index: 2;
+    }
+    .hero p {
+        color: #E3F2FD !important;
+        font-size: 16px !important;
+        line-height: 1.6 !important;
+        margin: 0 !important;
+        position: relative;
+        z-index: 2;
+    }
+
+    /* ============================================================
+       HOME CARDS — clean white with strong hover
+       ============================================================ */
+
+    .home-card-link {
+        display: block;
+        text-decoration: none;
+        color: inherit;
+        cursor: pointer;
+    }
+    .home-card-link:hover,
+    .home-card-link:focus,
+    .home-card-link:visited {
+        text-decoration: none;
+        color: inherit;
+    }
     .home-card {
-        padding: 24px; border-radius: 10px; margin-bottom: 12px;
-        min-height: 110px; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s;
-        border: 2px solid transparent;
+        padding: 26px 24px;
+        border-radius: 14px;
+        margin-bottom: 14px;
+        min-height: 130px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        background: #FFFFFF !important;
+        border: 2px solid #E3F2FD;
+        display: block;
+        width: 100%;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
     }
-    .home-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.15); }
-    .home-card h3 { margin-top: 0; color: #1a1a2e; }
-    .home-card p  { color: #444; margin: 0; }
-    .home-card .tap-hint { font-size: 12px; color: #1976d2; margin-top: 8px; font-weight: 600; }
-    .bg-green  { background:#d4edda; border-color:#c3e6cb; }
-    .bg-yellow { background:#fff3cd; border-color:#ffeaa7; }
-    .bg-blue   { background:#d1ecf1; border-color:#bee5eb; }
-    .bg-purple { background:#e8daef; border-color:#d7bce8; }
-    .hero { background:linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color:white; padding:30px; border-radius:8px; margin-bottom:20px; }
-    .hero h1 { color:white; margin:0 0 10px 0; }
-    .hero p { color:#b0c4de; margin:0; }
-    .stats-bar { background:#e8eaf6; padding:12px; border-radius:8px; margin-top:12px; text-align:center; }
-    .region-warning { background:#fff3cd; padding:10px; border-radius:6px; border-left:4px solid #ff9800; margin-bottom:10px; font-size:14px; }
-    div[data-testid="stDownloadButton"] button { font-weight: 600; }
+    .home-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 24px rgba(30,136,229,0.15);
+        border-color: #1E88E5;
+    }
+    .home-card:active {
+        transform: translateY(-2px) scale(0.99);
+    }
+    .home-card h3 {
+        margin-top: 0 !important;
+        margin-bottom: 8px !important;
+        color: #111 !important;
+        font-size: 20px !important;
+        font-weight: 700 !important;
+    }
+    .home-card p {
+        color: #555 !important;
+        margin: 0 !important;
+        font-size: 15px !important;
+        line-height: 1.5 !important;
+    }
+
+    /* Subtle color accents per card type */
+    .bg-green  { border-left: 5px solid #4CAF50 !important; }
+    .bg-yellow { border-left: 5px solid #FFC107 !important; }
+    .bg-blue   { border-left: 5px solid #1E88E5 !important; }
+    .bg-purple { border-left: 5px solid #9C27B0 !important; }
+
+    /* ============================================================
+       STATS BAR — clean, professional
+       ============================================================ */
+
+    .stats-bar {
+        background: #F8FAFB;
+        padding: 16px 20px;
+        border-radius: 12px;
+        margin-top: 20px;
+        text-align: center;
+        border: 1px solid #E3F2FD;
+        font-size: 14px;
+        color: #333;
+    }
+    .stats-bar b { color: #1565C0; }
+
+    /* ============================================================
+       ONBOARDING — bold green trust panel
+       ============================================================ */
+
     .onboard {
-        background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
-        color: white; padding: 24px; border-radius: 12px;
-        margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        background: linear-gradient(135deg, #43A047 0%, #2E7D32 100%);
+        color: white;
+        padding: 28px 26px;
+        border-radius: 16px;
+        margin-bottom: 24px;
+        box-shadow: 0 8px 24px rgba(67,160,71,0.25);
     }
-    .onboard h2 { color: white; margin: 0 0 12px 0; font-size: 22px; }
-    .onboard p  { color: #E8F5E9; font-size: 16px; line-height: 1.9; margin: 0; }
-    .onboard a  { color: #FFEB3B; font-weight: bold; text-decoration: underline; }
+    .onboard h2 {
+        color: white !important;
+        margin: 0 0 14px 0 !important;
+        font-size: 22px !important;
+        font-weight: 700 !important;
+    }
+    .onboard p {
+        color: #E8F5E9 !important;
+        font-size: 16px !important;
+        line-height: 1.9 !important;
+        margin: 0 !important;
+    }
+    .onboard a {
+        color: #FFEB3B !important;
+        font-weight: 700 !important;
+        text-decoration: underline !important;
+    }
+
+    /* ============================================================
+       API KEY MISSING BANNER
+       ============================================================ */
+
     .nokey-banner {
-        background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);
-        color: white; padding: 18px; border-radius: 10px; margin-bottom: 16px;
+        background: linear-gradient(135deg, #FB8C00 0%, #E65100 100%);
+        color: white;
+        padding: 20px 22px;
+        border-radius: 12px;
+        margin-bottom: 20px;
+        box-shadow: 0 6px 18px rgba(251,140,0,0.2);
     }
-    .nokey-banner h3 { color: white; margin: 0 0 8px 0; }
-    .nokey-banner p  { color: #FFF3E0; margin: 0; line-height: 1.7; }
+    .nokey-banner h3 {
+        color: white !important;
+        margin: 0 0 10px 0 !important;
+        font-weight: 700 !important;
+    }
+    .nokey-banner p {
+        color: #FFF3E0 !important;
+        margin: 0 !important;
+        line-height: 1.7 !important;
+    }
+
+    /* ============================================================
+       REGION WARNING
+       ============================================================ */
+
+    .region-warning {
+        background: #FFF8E1;
+        padding: 14px 16px;
+        border-radius: 10px;
+        border-left: 4px solid #FFA000;
+        margin-bottom: 14px;
+        font-size: 14px;
+        color: #5D4037;
+    }
+
+    /* ============================================================
+       BUTTONS — bold, black, unmissable (Confused.com style)
+       ============================================================ */
+
+    .stButton > button[kind="primary"] {
+        background: #111 !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 10px !important;
+        padding: 12px 24px !important;
+        font-weight: 700 !important;
+        font-size: 15px !important;
+        letter-spacing: 0.2px !important;
+        transition: all 0.2s ease !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+    }
+    .stButton > button[kind="primary"]:hover {
+        background: #1E88E5 !important;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(30,136,229,0.3) !important;
+    }
+    .stButton > button[kind="primary"]:active {
+        transform: translateY(0) scale(0.98);
+    }
+    /* Secondary buttons */
+    .stButton > button:not([kind="primary"]) {
+        background: white !important;
+        color: #111 !important;
+        border: 2px solid #E3F2FD !important;
+        border-radius: 10px !important;
+        padding: 10px 20px !important;
+        font-weight: 600 !important;
+        transition: all 0.2s ease !important;
+    }
+    .stButton > button:not([kind="primary"]):hover {
+        border-color: #1E88E5 !important;
+        color: #1E88E5 !important;
+    }
+    /* Download buttons — bold */
+    div[data-testid="stDownloadButton"] button {
+        font-weight: 700 !important;
+        border-radius: 10px !important;
+        padding: 10px 20px !important;
+    }
+
+    /* ============================================================
+       INPUTS — cleaner text areas & selectboxes
+       ============================================================ */
+
+    .stTextInput input, .stTextArea textarea, .stSelectbox > div > div {
+        border-radius: 10px !important;
+        border: 2px solid #E3F2FD !important;
+        font-family: 'Inter', sans-serif !important;
+    }
+    .stTextInput input:focus, .stTextArea textarea:focus {
+        border-color: #1E88E5 !important;
+        box-shadow: 0 0 0 3px rgba(30,136,229,0.1) !important;
+    }
+
+    /* ============================================================
+       SIDEBAR — clean look
+       ============================================================ */
+
+    section[data-testid="stSidebar"] {
+        background: #F8FAFB !important;
+        border-right: 1px solid #E3F2FD;
+    }
+    section[data-testid="stSidebar"] .stMarkdown h1 {
+        color: #1565C0 !important;
+        font-weight: 800 !important;
+    }
+    /* Keep close arrow visible on mobile scroll */
     section[data-testid="stSidebar"] button[kind="header"] {
         position: fixed !important; top: 10px !important; z-index: 999999 !important;
     }
     [data-testid="collapsedControl"] {
         position: fixed !important; top: 10px !important; left: 10px !important;
         z-index: 999999 !important; background: rgba(255,255,255,0.95) !important;
-        border-radius: 6px !important; padding: 4px !important;
+        border-radius: 8px !important; padding: 4px !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    /* ============================================================
+       HEADINGS — cleaner hierarchy
+       ============================================================ */
+
+    h1 { font-weight: 800 !important; letter-spacing: -0.5px; color: #111 !important; }
+    h2 { font-weight: 700 !important; letter-spacing: -0.3px; color: #111 !important; }
+    h3 { font-weight: 700 !important; color: #1E88E5 !important; }
+    h4, h5 { font-weight: 600 !important; color: #111 !important; }
+
+    /* ============================================================
+       INFO / SUCCESS / WARNING banners — softer look
+       ============================================================ */
+
+    .stAlert {
+        border-radius: 12px !important;
+        border-left-width: 4px !important;
+        font-family: 'Inter', sans-serif !important;
+    }
+
+    /* ============================================================
+       EXPANDER — cleaner
+       ============================================================ */
+
+    .streamlit-expanderHeader {
+        font-weight: 600 !important;
+        border-radius: 10px !important;
     }
 </style>
 """, unsafe_allow_html=True)
