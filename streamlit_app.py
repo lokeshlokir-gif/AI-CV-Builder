@@ -6,6 +6,7 @@ with persistent history, mobile-safe sidebar, emoji-stripped exports,
 Gemini + OpenAI + Claude providers, open My Library, voice input + AI polish."""
 import streamlit as st
 import streamlit.components.v1 as components
+from streamlit_option_menu import option_menu
 import json, re, time, io, ssl, random, uuid
 import urllib.request, urllib.error
 from datetime import datetime
@@ -901,7 +902,7 @@ def _parse_questions(text):
 # STREAMLIT CONFIG + CSS
 # ============================================================
 st.set_page_config(page_title="AI CV Builder", page_icon="📄",
-                   layout="wide", initial_sidebar_state="expanded")
+                   layout="wide", initial_sidebar_state="colapsed")
 
 st.markdown("""
 <style>
@@ -1430,19 +1431,72 @@ if "nav" in qp:
     st.rerun()
 
 # ============================================================
-# SIDEBAR — Gemini + OpenAI + Claude
+# TOP HORIZONTAL NAVIGATION (visible on all pages)
+# ============================================================
+nav_labels = ["Home", "Generate CV", "CV vs JD", "CV Analysis",
+              "Multi-JD", "Interview Prep", "Mock Interview",
+              "Coaching", "Library", "Settings"]
+nav_icons = ["house-fill", "file-earmark-text-fill", "search",
+             "bar-chart-fill", "files", "mic-fill", "chat-dots-fill",
+             "person-workspace", "bookmark-fill", "gear-fill"]
+nav_page_map = {
+    "Home": "🏠 Home", "Generate CV": "📝 Generate CV",
+    "CV vs JD": "🔍 CV vs JD", "CV Analysis": "📊 CV Analysis",
+    "Multi-JD": "📑 Multi-JD Compare", "Interview Prep": "🎤 Interview Prep",
+    "Mock Interview": "🎙️ Mock Interview", "Coaching": "🧑‍💼 Coaching",
+    "Library": "📚 My Library", "Settings": "⚙️ Settings",
+}
+current_label = None
+for lbl, pg in nav_page_map.items():
+    if pg == st.session_state.page:
+        current_label = lbl
+        break
+current_idx = nav_labels.index(current_label) if current_label else 0
+
+selected_nav = option_menu(
+    menu_title=None,
+    options=nav_labels,
+    icons=nav_icons,
+    orientation="horizontal",
+    default_index=current_idx,
+    key="top_nav",
+    styles={
+        "container": {
+            "padding": "6px 4px!important",
+            "background-color": "#F5F9FD",
+            "border-radius": "12px",
+            "margin-bottom": "14px",
+            "border": "1px solid #E1EBF5",
+        },
+        "icon": {"color": "#1976D2", "font-size": "14px"},
+        "nav-link": {
+            "font-size": "13px",
+            "text-align": "center",
+            "margin": "0 2px",
+            "padding": "7px 10px",
+            "color": "#333",
+            "font-weight": "500",
+            "border-radius": "8px",
+            "font-family": "'Inter', sans-serif",
+            "--hover-color": "#E3F2FD",
+        },
+        "nav-link-selected": {
+            "background-color": "#1976D2",
+            "color": "white",
+            "font-weight": "700",
+        },
+    },
+)
+if selected_nav and nav_page_map[selected_nav] != st.session_state.page:
+    st.session_state.page = nav_page_map[selected_nav]
+    st.rerun()
+page = st.session_state.page
+
+# ============================================================
+# SIDEBAR — Gemini + OpenAI + Claude (settings only, no nav)
 # ============================================================
 with st.sidebar:
-    st.markdown("# 📄 AI CV Builder")
-    st.markdown("---")
-    idx = PAGES.index(st.session_state.page) if st.session_state.page in PAGES else 0
-    selected = st.radio("**Navigation**", PAGES, index=idx, label_visibility="collapsed",
-                        key="nav_radio")
-    if selected != st.session_state.page:
-        st.session_state.page = selected
-        st.rerun()
-    page = st.session_state.page
-
+    st.markdown("# ⚙️ Settings")
     st.markdown("---")
     st.markdown("**🤖 AI Provider**")
     provider = st.radio("Provider",
