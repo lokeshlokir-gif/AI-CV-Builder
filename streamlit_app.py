@@ -1129,7 +1129,7 @@ st.markdown("""
     section[data-testid="stSidebar"] label span,
     section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
         color: #1a1a1a !important;
-        font-size: 15px !important;
+        font-size: 14px !important;
         font-weight: 500 !important;
         white-space: normal !important;
         overflow: visible !important;
@@ -1157,7 +1157,17 @@ st.markdown("""
     section[data-testid="stSidebar"] .stRadio label > div:first-child {
         margin-right: 0 !important;
     }
-`
+    /* Reduce vertical spacing between sidebar sections */
+    section[data-testid="stSidebar"] hr {
+        margin: 10px 0 !important;
+    }
+    section[data-testid="stSidebar"] .stMarkdown {
+        margin-bottom: 4px !important;
+    }
+    section[data-testid="stSidebar"] .element-container {
+        margin-bottom: 2px !important;
+    }
+    
     section[data-testid="stSidebar"] .stRadio label:hover {
         background: #E3F2FD !important;
     }
