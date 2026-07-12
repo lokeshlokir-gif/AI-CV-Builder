@@ -1139,15 +1139,25 @@ st.markdown("""
         text-shadow: none !important;
     }
     /* Radio button text specifically */
+    /* Radio button — compact spacing */
+    section[data-testid="stSidebar"] .stRadio > div {
+        gap: 0 !important;
+    }
     section[data-testid="stSidebar"] .stRadio label {
         color: #1a1a1a !important;
-        padding: 6px 8px !important;
-        margin: 2px 0 !important;
-        border-radius: 8px !important;
+        padding: 4px 8px !important;
+        margin: 0 !important;
+        border-radius: 6px !important;
         display: flex !important;
         align-items: center !important;
-        gap: 8px !important;
+        gap: 6px !important;
+        min-height: 32px !important;
+        line-height: 1.2 !important;
     }
+    section[data-testid="stSidebar"] .stRadio label > div:first-child {
+        margin-right: 0 !important;
+    }
+`
     section[data-testid="stSidebar"] .stRadio label:hover {
         background: #E3F2FD !important;
     }
